@@ -1,0 +1,35 @@
+<?php
+require_once __DIR__ . '/lib/auth.php';
+require_once __DIR__ . '/lib/layout.php';
+boot();
+
+if (current_user()) { header('Location: ' . home_for(current_user())); exit; }
+
+$error = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_check();
+    $u = attempt_login($_POST['ident'] ?? '', $_POST['password'] ?? '');
+    if ($u) { header('Location: ' . ($u['must_change'] ? 'password.php' : home_for($u))); exit; }
+    $error = 'Carné/correo o contraseña incorrectos.';
+}
+
+page_top('Iniciar sesión');
+?>
+<div class="login-box">
+  <div class="brand-big">Mi<span>Sala</span>UCR</div>
+  <p class="sub" style="text-align:center">Reserva tu sala de estudio en segundos</p>
+  <div class="card">
+    <?php if ($error): ?><div class="alert bad"><?= e($error) ?></div><?php endif; ?>
+    <form method="post">
+      <?= csrf_field() ?>
+      <label for="ident">Número de carné (o correo)</label>
+      <input id="ident" name="ident" required autofocus autocomplete="username" placeholder="Ej: C12345">
+      <label for="password">Contraseña</label>
+      <input id="password" type="password" name="password" required autocomplete="current-password">
+      <br><br>
+      <button class="btn full" type="submit">Entrar</button>
+    </form>
+  </div>
+  <p class="mini" style="text-align:center">¿No tienes cuenta? Solicítala en la oficina de tu asociación.</p>
+</div>
+<?php page_bottom();

@@ -1,0 +1,6 @@
+# MiSalaUCR — protección de carpetas internas (Apache/Hostinger)
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule ^(data|lib)/ - [F,L]
+</IfModule>
+Options -Indexes

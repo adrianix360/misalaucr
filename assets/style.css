@@ -1,0 +1,115 @@
+/* MiSalaUCR — mobile-first */
+:root {
+  --azul: #0f6ab4; --azul-osc: #0b5290; --celeste: #e8f3fb;
+  --verde: #1d9a6c; --verde-cl: #e2f6ec;
+  --rojo: #c94747; --rojo-cl: #fbeaea;
+  --gris: #6b7683; --gris-cl: #f2f4f7; --borde: #dde3ea;
+  --tinta: #22303e; --fondo: #f7f9fb;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--fondo); color: var(--tinta); font-size: 16px; }
+.wrap { max-width: 960px; margin: 0 auto; padding: 0 12px; }
+
+.topbar { background: var(--azul); color: #fff; }
+.bar { display: flex; align-items: center; justify-content: space-between; min-height: 52px; flex-wrap: wrap; }
+.brand { color: #fff; text-decoration: none; font-weight: 800; font-size: 1.2rem; letter-spacing: .3px; }
+.brand span { color: #ffd35c; }
+.topbar nav { display: flex; gap: 4px; flex-wrap: wrap; }
+.topbar nav a { color: #eaf4ff; text-decoration: none; padding: 8px 10px; border-radius: 8px; font-size: .93rem; }
+.topbar nav a.on, .topbar nav a:hover { background: rgba(255,255,255,.16); }
+.topbar nav a.salir { color: #ffd9d9; }
+main { padding: 16px 12px 40px; }
+.foot { text-align: center; color: var(--gris); font-size: .8rem; padding: 18px 0 26px; }
+
+h1 { font-size: 1.35rem; margin: 8px 0 4px; }
+h2 { font-size: 1.05rem; margin: 20px 0 8px; }
+.sub { color: var(--gris); margin: 0 0 14px; font-size: .93rem; }
+
+.card { background: #fff; border: 1px solid var(--borde); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+.alert { padding: 10px 14px; border-radius: 10px; margin: 10px 0; font-size: .95rem; }
+.alert.good { background: var(--verde-cl); color: #10613f; border: 1px solid #bfe7d4; }
+.alert.bad  { background: var(--rojo-cl);  color: #8c2e2e; border: 1px solid #eec7c7; }
+
+/* formularios */
+label { display: block; font-size: .88rem; font-weight: 600; margin: 10px 0 4px; }
+input, select, textarea { width: 100%; padding: 11px 12px; border: 1px solid var(--borde);
+  border-radius: 10px; font-size: 1rem; background: #fff; }
+input:focus, select:focus { outline: 2px solid var(--azul); border-color: var(--azul); }
+.btn { display: inline-block; border: 0; border-radius: 10px; padding: 11px 18px; font-size: 1rem;
+  font-weight: 700; cursor: pointer; text-decoration: none; text-align: center;
+  background: var(--azul); color: #fff; }
+.btn:hover { background: var(--azul-osc); }
+.btn.verde { background: var(--verde); }
+.btn.rojo { background: var(--rojo); }
+.btn.gris { background: var(--gris-cl); color: var(--tinta); border: 1px solid var(--borde); }
+.btn.chico { padding: 6px 12px; font-size: .85rem; border-radius: 8px; }
+.btn.full { width: 100%; }
+form.inline { display: inline; }
+
+/* login */
+.login-box { max-width: 380px; margin: 8vh auto 0; }
+.login-box .brand-big { text-align: center; font-size: 1.9rem; font-weight: 800; color: var(--azul); margin-bottom: 6px; }
+.login-box .brand-big span { color: #e9a600; }
+
+/* rejilla de salas */
+.grid-salas { display: grid; grid-template-columns: 52px repeat(3, 1fr); gap: 5px; }
+.grid-salas .hd { font-weight: 700; font-size: .85rem; text-align: center; padding: 6px 2px; }
+.grid-salas .hora { font-size: .78rem; color: var(--gris); display: flex; align-items: center; justify-content: center; }
+.blk { display: block; width: 100%; border-radius: 9px; border: 1px solid var(--borde);
+  padding: 10px 2px; text-align: center; font-size: .82rem; font-weight: 600; }
+button.blk { cursor: pointer; }
+.blk.libre { background: var(--verde-cl); color: #10613f; border-color: #bfe7d4; }
+button.blk.libre:hover { outline: 2px solid var(--verde); }
+.blk.ocupado { background: var(--gris-cl); color: var(--gris); }
+.blk.mio { background: var(--celeste); color: var(--azul-osc); border-color: #b9d9f0; }
+.blk.cerrado { background: #f4e9e9; color: #a15c5c; }
+.blk.pasado { background: #fbfbfc; color: #c2c9d1; }
+
+/* tarjetas de reserva */
+.res { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  border: 1px solid var(--borde); border-radius: 12px; padding: 11px 13px; margin-bottom: 8px; background: #fff; flex-wrap: wrap; }
+.res .qué { font-weight: 700; }
+.res .cuando { color: var(--gris); font-size: .88rem; }
+.pill { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: .78rem; font-weight: 700; }
+.pill.activa { background: var(--celeste); color: var(--azul-osc); }
+.pill.completada { background: var(--verde-cl); color: #10613f; }
+.pill.cancelada { background: var(--gris-cl); color: var(--gris); }
+.pill.no_show { background: var(--rojo-cl); color: #8c2e2e; }
+.pill.bloqueada { background: var(--rojo-cl); color: #8c2e2e; }
+.pill.disponible { background: var(--verde-cl); color: #10613f; }
+
+/* saldo de horas */
+.saldo { display: flex; gap: 10px; align-items: center; background: var(--celeste);
+  border: 1px solid #b9d9f0; border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; }
+.saldo b { font-size: 1.4rem; color: var(--azul-osc); }
+
+/* tablas */
+.tabla { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.tabla th { text-align: left; color: var(--gris); font-size: .8rem; text-transform: uppercase;
+  letter-spacing: .4px; padding: 8px 8px; border-bottom: 2px solid var(--borde); }
+.tabla td { padding: 9px 8px; border-bottom: 1px solid var(--borde); vertical-align: middle; }
+.tabla-scroll { overflow-x: auto; }
+
+/* pestañas */
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+.tabs a { padding: 8px 14px; border-radius: 99px; text-decoration: none; font-weight: 600;
+  font-size: .9rem; color: var(--tinta); background: #fff; border: 1px solid var(--borde); }
+.tabs a.on { background: var(--azul); color: #fff; border-color: var(--azul); }
+
+/* barra de confirmación de reserva */
+.confirmar { position: sticky; bottom: 10px; background: #fff; border: 2px solid var(--azul);
+  border-radius: 14px; padding: 13px; box-shadow: 0 6px 24px rgba(15,106,180,.18); }
+
+.dos-col { display: grid; gap: 14px; }
+@media (min-width: 720px) { .dos-col { grid-template-columns: 1fr 1fr; } }
+
+.kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+@media (min-width: 720px) { .kpis { grid-template-columns: repeat(4, 1fr); } }
+.kpi { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 12px; text-align: center; }
+.kpi b { display: block; font-size: 1.5rem; color: var(--azul-osc); }
+.kpi span { color: var(--gris); font-size: .82rem; }
+
+.mini { font-size: .82rem; color: var(--gris); }
+.barra { background: var(--gris-cl); border-radius: 6px; height: 10px; overflow: hidden; }
+.barra i { display: block; height: 100%; background: var(--azul); }

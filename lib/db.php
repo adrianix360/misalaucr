@@ -1,0 +1,149 @@
+<?php
+/**
+ * MiSalaUCR — Conexión a base de datos, esquema y datos iniciales.
+ * Compatible con SQLite (local) y MySQL (Hostinger).
+ */
+
+function cfg(): array {
+    static $cfg = null;
+    if ($cfg === null) {
+        $cfg = require __DIR__ . '/../config.php';
+        date_default_timezone_set($cfg['timezone'] ?? 'America/Costa_Rica');
+    }
+    return $cfg;
+}
+
+function db(): PDO {
+    static $pdo = null;
+    if ($pdo !== null) return $pdo;
+
+    $c = cfg()['db'];
+    if ($c['driver'] === 'mysql') {
+        $m = $c['mysql'];
+        $pdo = new PDO(
+            "mysql:host={$m['host']};dbname={$m['dbname']};charset=utf8mb4",
+            $m['user'], $m['pass'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+        );
+    } else {
+        $path = $c['sqlite_path'];
+        if (!is_dir(dirname($path))) mkdir(dirname($path), 0775, true);
+        $pdo = new PDO('sqlite:' . $path, null, null,
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+        $pdo->exec('PRAGMA foreign_keys = ON');
+        $pdo->exec('PRAGMA busy_timeout = 5000');
+    }
+    db_init($pdo, $c['driver']);
+    return $pdo;
+}
+
+function db_init(PDO $pdo, string $driver): void {
+    $isMysql = ($driver === 'mysql');
+    $PK  = $isMysql ? 'INT AUTO_INCREMENT PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
+    $suf = $isMysql ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' : '';
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS organizations (
+        id $PK,
+        name VARCHAR(150) NOT NULL,
+        active TINYINT NOT NULL DEFAULT 1,
+        open_hour INT NOT NULL DEFAULT 7,
+        close_hour INT NOT NULL DEFAULT 22,
+        days_open VARCHAR(20) NOT NULL DEFAULT '1,2,3,4,5',
+        max_blocks_session INT NOT NULL DEFAULT 2,
+        max_hours_week INT NOT NULL DEFAULT 4,
+        week_start INT NOT NULL DEFAULT 1,
+        checkin_minutes INT NOT NULL DEFAULT 10,
+        noshow_limit INT NOT NULL DEFAULT 3,
+        noshow_block_days INT NOT NULL DEFAULT 7,
+        created_at VARCHAR(19) NOT NULL
+    )$suf");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS users (
+        id $PK,
+        org_id INT NULL,
+        role VARCHAR(10) NOT NULL, -- 'super' | 'admin' | 'student'
+        name VARCHAR(150) NOT NULL,
+        carne VARCHAR(50) NULL,
+        email VARCHAR(150) NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        must_change TINYINT NOT NULL DEFAULT 0,
+        active TINYINT NOT NULL DEFAULT 1,
+        noshow_count INT NOT NULL DEFAULT 0,
+        blocked_until VARCHAR(19) NULL,
+        created_at VARCHAR(19) NOT NULL
+    )$suf");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS rooms (
+        id $PK,
+        org_id INT NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        capacity INT NOT NULL DEFAULT 6,
+        status VARCHAR(15) NOT NULL DEFAULT 'disponible', -- 'disponible' | 'bloqueada'
+        note VARCHAR(255) NULL
+    )$suf");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS reservations (
+        id $PK,
+        org_id INT NOT NULL,
+        room_id INT NOT NULL,
+        user_id INT NOT NULL,
+        rdate VARCHAR(10) NOT NULL,
+        start_hour INT NOT NULL,
+        end_hour INT NOT NULL,
+        status VARCHAR(12) NOT NULL DEFAULT 'activa', -- activa|cancelada|completada|no_show
+        checked_in_at VARCHAR(19) NULL,
+        reminder_sent TINYINT NOT NULL DEFAULT 0,
+        created_at VARCHAR(19) NOT NULL
+    )$suf");
+
+    // Un bloque físico por sala/fecha/hora: el índice único impide dobles reservas
+    // incluso con usuarios reservando en simultáneo.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS reservation_blocks (
+        id $PK,
+        room_id INT NOT NULL,
+        rdate VARCHAR(10) NOT NULL,
+        hour INT NOT NULL,
+        reservation_id INT NOT NULL,
+        CONSTRAINT uq_block UNIQUE (room_id, rdate, hour)
+    )$suf");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS email_log (
+        id $PK,
+        org_id INT NULL,
+        to_email VARCHAR(150) NOT NULL,
+        subject VARCHAR(200) NOT NULL,
+        body TEXT NOT NULL,
+        status VARCHAR(12) NOT NULL DEFAULT 'pendiente', -- pendiente|enviado|error
+        error VARCHAR(255) NULL,
+        created_at VARCHAR(19) NOT NULL
+    )$suf");
+
+    // Datos iniciales (solo la primera vez)
+    $n = (int)$pdo->query("SELECT COUNT(*) AS c FROM organizations")->fetch()['c'];
+    if ($n === 0) db_seed($pdo);
+}
+
+function db_seed(PDO $pdo): void {
+    $now = date('Y-m-d H:i:s');
+
+    $pdo->prepare("INSERT INTO organizations (name, active, open_hour, close_hour, days_open,
+        max_blocks_session, max_hours_week, week_start, checkin_minutes, noshow_limit, noshow_block_days, created_at)
+        VALUES (?,1,7,22,'1,2,3,4,5',2,4,1,10,3,7,?)")
+        ->execute(['Asociación de Estudiantes de Ingeniería Civil UCR', $now]);
+    $orgId = (int)$pdo->lastInsertId();
+
+    foreach (['Sala 1', 'Sala 2', 'Sala 3'] as $name) {
+        $pdo->prepare("INSERT INTO rooms (org_id, name, capacity, status) VALUES (?,?,6,'disponible')")
+            ->execute([$orgId, $name]);
+    }
+
+    // Super-administrador de la plataforma
+    $pdo->prepare("INSERT INTO users (org_id, role, name, email, password_hash, must_change, active, created_at)
+        VALUES (NULL,'super','Super Administrador',?,?,0,1,?)")
+        ->execute(['castroramirez702@gmail.com', password_hash('Acracr12?', PASSWORD_DEFAULT), $now]);
+
+    // Administrador de la asociación (placeholder: edítelo desde el panel de super-admin)
+    $pdo->prepare("INSERT INTO users (org_id, role, name, email, password_hash, must_change, active, created_at)
+        VALUES (?,'admin','Admin Ingeniería Civil',?,?,1,1,?)")
+        ->execute([$orgId, 'admin.civil@misalaucr.test', password_hash('CivilUCR2026!', PASSWORD_DEFAULT), $now]);
+}
