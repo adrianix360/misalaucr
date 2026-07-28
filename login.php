@@ -9,6 +9,10 @@ $error = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $u = attempt_login($_POST['ident'] ?? '', $_POST['password'] ?? '');
+    if ($u && !empty($u['_suspendida'])) {
+        $r = trim((string)($u['frozen_reason'] ?? ''));
+        header('Location: suspendida.php' . ($r !== '' ? '?r=' . urlencode($r) : '')); exit;
+    }
     if ($u) { header('Location: ' . ($u['must_change'] ? 'password.php' : home_for($u))); exit; }
     $error = 'Carné/correo o contraseña incorrectos.';
 }

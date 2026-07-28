@@ -63,23 +63,34 @@ recordatorio y bloqueo quedan registrados en el panel Admin → Correos.
 Un estudiante por línea, con este orden de columnas (vea `ejemplo_estudiantes.csv`):
 
 ```
-nombre,carné,correo,contraseña
-Ana Mora Pérez,C23451,ana.mora@ucr.ac.cr,
-José Solano Li,C23452,jose.solano@ucr.ac.cr,ClaveTemp1
+nombre,carné,correo,teléfono,contraseña
+Ana Mora Pérez,C23451,ana.mora@ucr.ac.cr,8888-1111,
+José Solano Li,C23452,jose.solano@ucr.ac.cr,,ClaveTemp1
 ```
 
-Correo y contraseña son opcionales; si falta la contraseña se genera una
-automática y se muestra **una sola vez** tras la importación para entregarla
-al estudiante.
+Correo, teléfono y contraseña son opcionales; si falta la contraseña se genera
+una automática y se muestra **una sola vez** tras la importación para
+entregarla al estudiante.
 
 ## Reglas (configurables por organización, panel Admin → Configuración)
 
 - Horario operativo (por defecto L–V, 7:00–22:00, bloques de 1 hora).
 - Solo se reserva el mismo día; los bloques se abren a la hora de apertura.
 - Máximo de horas por sesión (2) y por semana (4, ciclo lunes a domingo, ajustable).
+- Cancelación del estudiante: hasta 10 minutos antes del inicio del bloque.
 - Check-in de 10 minutos al iniciar el bloque; sin confirmación → no-show y el
-  espacio se libera.
+  espacio se libera (si hay fila de espera, se asigna automáticamente al primero).
 - 3 no-shows → bloqueo de 1 semana (el admin puede levantarlo manualmente).
+- Fila de espera: si un bloque está ocupado, el estudiante puede inscribirse;
+  al liberarse, la reserva se asigna en orden de llegada y se avisa por correo.
+
+## Otras funciones
+
+- Admin: renombrar salas (pestaña Salas) y teléfono de estudiantes.
+- Super-admin: dashboard (resumen, ranking de uso, actividad reciente),
+  crear/mover estudiantes entre asociaciones, y congelar asociaciones por
+  impago con motivo visible (los usuarios pierden acceso de inmediato y ven
+  la pantalla de "asociación suspendida").
 
 ## Estructura
 

@@ -1,4 +1,4 @@
-nombre,carne,correo,contrasena
-Ana Mora Pérez,C23451,ana.mora@ucr.ac.cr,
-José Solano Li,C23452,jose.solano@ucr.ac.cr,ClaveTemp1
-María Fernández Rojas,C23453,maria.fernandez@ucr.ac.cr,
+nombre,carne,correo,telefono,contrasena
+Ana Mora Pérez,C23451,ana.mora@ucr.ac.cr,8888-1111,
+José Solano Li,C23452,jose.solano@ucr.ac.cr,,ClaveTemp1
+María Fernández Rojas,C23453,maria.fernandez@ucr.ac.cr,8888-3333,

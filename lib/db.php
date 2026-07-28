@@ -118,6 +118,34 @@ function db_init(PDO $pdo, string $driver): void {
         created_at VARCHAR(19) NOT NULL
     )$suf");
 
+    // Fila de espera por bloque exacto (sala + fecha + hora de inicio)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS waitlist (
+        id $PK,
+        org_id INT NOT NULL,
+        room_id INT NOT NULL,
+        rdate VARCHAR(10) NOT NULL,
+        start_hour INT NOT NULL,
+        n_blocks INT NOT NULL DEFAULT 1,
+        user_id INT NOT NULL,
+        status VARCHAR(12) NOT NULL DEFAULT 'esperando', -- esperando|asignada|cancelada
+        created_at VARCHAR(19) NOT NULL
+    )$suf");
+
+    // Bitácora de actividad de la plataforma (dashboard del super-admin)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS activity_log (
+        id $PK,
+        org_id INT NULL,
+        kind VARCHAR(20) NOT NULL,
+        description VARCHAR(255) NOT NULL,
+        created_at VARCHAR(19) NOT NULL
+    )$suf");
+
+    // Migraciones suaves: columnas nuevas sobre bases ya existentes
+    foreach (["ALTER TABLE organizations ADD COLUMN frozen_reason VARCHAR(255) NULL",
+              "ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL"] as $sql) {
+        try { $pdo->exec($sql); } catch (PDOException $e) { /* la columna ya existe */ }
+    }
+
     // Datos iniciales (solo la primera vez)
     $n = (int)$pdo->query("SELECT COUNT(*) AS c FROM organizations")->fetch()['c'];
     if ($n === 0) db_seed($pdo);

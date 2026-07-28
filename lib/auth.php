@@ -36,18 +36,26 @@ function current_user(): ?array {
     return $u;
 }
 
-/** Intenta iniciar sesión con carné o correo. Devuelve el usuario o null. */
+/**
+ * Intenta iniciar sesión con carné o correo.
+ * Devuelve el usuario, null si las credenciales fallan, o un arreglo con
+ * '_suspendida' => true si las credenciales son correctas pero la
+ * organización está congelada (no se abre sesión en ese caso).
+ */
 function attempt_login(string $ident, string $password): ?array {
     $ident = trim($ident);
     $st = db()->prepare(
-        "SELECT u.* FROM users u
+        "SELECT u.*, o.active AS org_active, o.frozen_reason
+         FROM users u
          LEFT JOIN organizations o ON o.id = u.org_id
          WHERE u.active = 1 AND (u.carne = ? OR u.email = ?)
-           AND (u.org_id IS NULL OR o.active = 1)
          ORDER BY u.id LIMIT 1");
     $st->execute([$ident, $ident]);
     $u = $st->fetch();
     if ($u && password_verify($password, $u['password_hash'])) {
+        if ($u['org_id'] !== null && !(int)$u['org_active']) {
+            return ['_suspendida' => true, 'frozen_reason' => $u['frozen_reason']];
+        }
         session_regenerate_id(true);
         $_SESSION['uid'] = (int)$u['id'];
         return $u;
@@ -66,6 +74,20 @@ function require_role(array $roles): array {
     boot();
     $u = current_user();
     if (!$u) { header('Location: login.php'); exit; }
+
+    // Si la organización fue congelada, la sesión existente pierde acceso de inmediato.
+    if ($u['role'] !== 'super' && $u['org_id']) {
+        $st = db()->prepare("SELECT active, frozen_reason FROM organizations WHERE id = ?");
+        $st->execute([$u['org_id']]);
+        $o = $st->fetch();
+        if (!$o || !(int)$o['active']) {
+            $reason = trim((string)($o['frozen_reason'] ?? ''));
+            logout();
+            header('Location: suspendida.php' . ($reason !== '' ? '?r=' . urlencode($reason) : ''));
+            exit;
+        }
+    }
+
     if ($u['must_change'] && basename($_SERVER['SCRIPT_NAME']) !== 'password.php') {
         header('Location: password.php'); exit;
     }

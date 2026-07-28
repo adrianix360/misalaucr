@@ -18,6 +18,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         [$ok, $msg] = cancel_reservation($u, (int)$_POST['res_id']);
     } elseif ($a === 'checkin') {
         [$ok, $msg] = do_checkin($u, (int)$_POST['res_id']);
+    } elseif ($a === 'fila_unirse') {
+        [$ok, $msg] = join_waitlist($u, $org, (int)$_POST['room_id'], (int)$_POST['hora'], (int)$_POST['bloques']);
+    } elseif ($a === 'fila_cancelar') {
+        [$ok, $msg] = cancel_waitlist($u, (int)$_POST['wl_id']);
+    } elseif ($a === 'perfil') {
+        $tel = trim($_POST['phone'] ?? '');
+        if ($tel !== '' && !preg_match('/^[0-9+\-\s()]{7,20}$/', $tel)) {
+            $ok = false; $msg = 'Teléfono inválido (use dígitos, espacios o guiones).';
+        } else {
+            db()->prepare("UPDATE users SET phone = ? WHERE id = ?")->execute([$tel ?: null, (int)$u['id']]);
+            $ok = true; $msg = 'Perfil actualizado.';
+        }
     } else { $ok = false; $msg = 'Acción desconocida.'; }
     flash_set($ok, $msg);
     header('Location: student.php'); exit;
@@ -48,11 +60,27 @@ $misBloquesHoy = [];
 foreach ($mias as $m) if ($m['rdate'] === $hoy && $m['status'] === 'activa')
     foreach (range($m['start_hour'], $m['end_hour'] - 1) as $h) $misBloquesHoy[$m['room_id']][$h] = true;
 
-// selección pendiente (tocó un bloque libre)
+// selección pendiente (tocó un bloque libre) o fila de espera (tocó uno ocupado)
 $sel = null;
 if (isset($_GET['sel']) && preg_match('/^(\d+),(\d+)$/', $_GET['sel'], $m2)) {
     $sel = ['room_id' => (int)$m2[1], 'hora' => (int)$m2[2]];
 }
+$fila = null;
+if (isset($_GET['fila']) && preg_match('/^(\d+),(\d+)$/', $_GET['fila'], $m2)) {
+    $fila = ['room_id' => (int)$m2[1], 'hora' => (int)$m2[2]];
+}
+
+// mis inscripciones activas en fila de espera
+$st = db()->prepare(
+    "SELECT w.*, rm.name AS room_name,
+        (SELECT COUNT(*) FROM waitlist w2
+         WHERE w2.room_id = w.room_id AND w2.rdate = w.rdate AND w2.start_hour = w.start_hour
+           AND w2.status = 'esperando' AND (w2.created_at < w.created_at OR (w2.created_at = w.created_at AND w2.id < w.id))
+        ) + 1 AS posicion
+     FROM waitlist w JOIN rooms rm ON rm.id = w.room_id
+     WHERE w.user_id = ? AND w.status = 'esperando' ORDER BY w.start_hour");
+$st->execute([$u['id']]);
+$misFilas = $st->fetchAll();
 
 page_top('Reservar', $u, 'student');
 ?>
@@ -77,12 +105,14 @@ if ($activas): ?>
     $winStart = max($ini, strtotime($m['created_at']));
     $winEnd = $winStart + 60 * (int)$org['checkin_minutes'];
     $enVentana = !$m['checked_in_at'] && $ahora >= $winStart && $ahora <= $winEnd && $ahora >= min($ini, $winStart);
+    $puedeCancelar = $ahora < $ini - 600; // hasta 10 minutos antes del inicio
 ?>
 <div class="res">
   <div>
     <div class="qué"><?= e($m['room_name']) ?> · <?= (int)$m['start_hour'] ?>:00–<?= (int)$m['end_hour'] ?>:00</div>
     <div class="cuando"><?= e(date('d/m/Y', strtotime($m['rdate']))) ?>
       <?php if ($m['checked_in_at']): ?> · ✅ llegada confirmada<?php elseif ($enVentana): ?> · ⏱️ confirma tu llegada (quedan <?= max(0, (int)ceil(($winEnd - $ahora) / 60)) ?> min)<?php endif; ?>
+      <?php if (!$puedeCancelar && !$m['checked_in_at']): ?><br>Ya no se puede cancelar esta reserva; faltan menos de 10 minutos (o ya inició).<?php endif; ?>
     </div>
   </div>
   <div style="display:flex; gap:6px">
@@ -90,11 +120,26 @@ if ($activas): ?>
     <form class="inline" method="post"><?= csrf_field() ?><input type="hidden" name="a" value="checkin"><input type="hidden" name="res_id" value="<?= (int)$m['id'] ?>">
       <button class="btn verde chico">✔ Confirmar que llegué</button></form>
     <?php endif; ?>
-    <?php if (!$m['checked_in_at']): ?>
+    <?php if ($puedeCancelar): ?>
     <form class="inline" method="post" onsubmit="return confirm('¿Cancelar esta reserva?')"><?= csrf_field() ?><input type="hidden" name="a" value="cancelar"><input type="hidden" name="res_id" value="<?= (int)$m['id'] ?>">
       <button class="btn gris chico">Cancelar</button></form>
     <?php endif; ?>
   </div>
+</div>
+<?php endforeach; endif; ?>
+
+<?php if ($misFilas): ?>
+<h2>Mi fila de espera</h2>
+<?php foreach ($misFilas as $w): ?>
+<div class="res">
+  <div>
+    <div class="qué">⏳ <?= e($w['room_name']) ?> · <?= (int)$w['start_hour'] ?>:00–<?= (int)$w['start_hour'] + (int)$w['n_blocks'] ?>:00</div>
+    <div class="cuando">Posición <?= (int)$w['posicion'] ?> en la fila · si se libera, la reserva será tuya automáticamente y te avisaremos por correo.</div>
+  </div>
+  <form class="inline" method="post" onsubmit="return confirm('¿Salir de la fila de espera?')">
+    <?= csrf_field() ?><input type="hidden" name="a" value="fila_cancelar"><input type="hidden" name="wl_id" value="<?= (int)$w['id'] ?>">
+    <button class="btn gris chico">Salir de la fila</button>
+  </form>
 </div>
 <?php endforeach; endif; ?>
 
@@ -121,7 +166,13 @@ if ($activas): ?>
         } elseif (!empty($misBloquesHoy[$rid][$h])) {
             echo '<span class="blk mio">Tuya</span>';
         } elseif (isset($occ[$rid][$h])) {
-            echo '<span class="blk ocupado">Ocupado</span>';
+            if (!$vencido && !$bloqueo && $rest > 0) {
+                $on = $fila && $fila['room_id'] === $rid && $fila['hora'] === $h;
+                echo '<a class="blk ocupado" style="text-decoration:none' . ($on ? ';outline:2px solid var(--azul)' : '') .
+                     '" title="Unirse a la fila de espera" href="student.php?fila=' . $rid . ',' . $h . '#fila">Ocupado ⏳</a>';
+            } else {
+                echo '<span class="blk ocupado">Ocupado</span>';
+            }
         } elseif ($vencido) {
             echo '<span class="blk pasado">—</span>';
         } elseif ($bloqueo || $rest <= 0) {
@@ -162,6 +213,34 @@ if ($activas): ?>
   </form>
 </div>
 <?php endif; endif; ?>
+
+<?php if ($fila && !$bloqueo && $rest > 0):
+    $roomF = null; foreach ($rooms as $r) if ((int)$r['id'] === $fila['room_id']) $roomF = $r;
+    $hf = $fila['hora'];
+    $puede2f = $rest >= 2 && (int)$org['max_blocks_session'] >= 2 && ($hf + 2) <= (int)$org['close_hour'];
+    if ($roomF && $roomF['status'] === 'disponible' && isset($occ[$fila['room_id']][$hf])): ?>
+<div class="confirmar" id="fila">
+  <b>Fila de espera: <?= e($roomF['name']) ?>, hoy a las <?= $hf ?>:00</b>
+  <p class="mini" style="margin:6px 0">Este bloque está ocupado. Si se libera, la reserva se te asignará
+  automáticamente en orden de llegada y te avisaremos por correo (recuerda el check-in de los primeros
+  <?= (int)$org['checkin_minutes'] ?> minutos).</p>
+  <form method="post">
+    <?= csrf_field() ?>
+    <input type="hidden" name="a" value="fila_unirse">
+    <input type="hidden" name="room_id" value="<?= $fila['room_id'] ?>">
+    <input type="hidden" name="hora" value="<?= $hf ?>">
+    <label>Duración deseada</label>
+    <select name="bloques">
+      <option value="1"><?= $hf ?>:00 – <?= $hf + 1 ?>:00 (1 hora)</option>
+      <?php if ($puede2f): ?><option value="2"><?= $hf ?>:00 – <?= $hf + 2 ?>:00 (2 horas)</option><?php endif; ?>
+    </select>
+    <div style="display:flex; gap:8px; margin-top:10px">
+      <button class="btn" type="submit">Unirme a la fila</button>
+      <a class="btn gris" href="student.php">Cancelar</a>
+    </div>
+  </form>
+</div>
+<?php endif; endif; ?>
 <?php endif; ?>
 
 <?php $hist = array_filter($mias, fn($m) => $m['status'] !== 'activa'); if ($hist): ?>
@@ -176,6 +255,19 @@ if ($activas): ?>
   <span class="pill <?= e($m['status']) ?>"><?= e($nombres[$m['status']] ?? $m['status']) ?></span>
 </div>
 <?php endforeach; endif; ?>
+
+<h2>Mi perfil</h2>
+<div class="card" style="max-width:420px">
+  <p class="mini">Carné: <b><?= e($u['carne']) ?></b><?= $u['email'] ? ' · Correo: ' . e($u['email']) : '' ?></p>
+  <form method="post" style="display:flex; gap:8px; align-items:end">
+    <?= csrf_field() ?><input type="hidden" name="a" value="perfil">
+    <div style="flex:1">
+      <label>Teléfono</label>
+      <input name="phone" value="<?= e($u['phone'] ?? '') ?>" placeholder="8888-8888" maxlength="20">
+    </div>
+    <button class="btn gris chico" style="margin-bottom:2px">Guardar</button>
+  </form>
+</div>
 
 <script>setTimeout(() => location.replace('student.php'), 60000);</script>
 <?php page_bottom();

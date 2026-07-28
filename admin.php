@@ -28,17 +28,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $st->execute([$nuevo, $nota ?: null, $rid, $orgId]);
         $ok = true; $msg = $nuevo === 'bloqueada' ? 'Sala bloqueada: no aparecerá disponible.' : 'Sala habilitada de nuevo.';
 
+    } elseif ($a === 'sala_renombrar') {
+        $rid = (int)$_POST['room_id'];
+        $nombre = trim($_POST['nombre'] ?? '');
+        if ($nombre === '') { $msg = 'El nombre no puede estar vacío.'; }
+        else {
+            $st = $pdo->prepare("UPDATE rooms SET name = ? WHERE id = ? AND org_id = ?");
+            $st->execute([mb_substr($nombre, 0, 100), $rid, $orgId]);
+            $ok = $st->rowCount() > 0;
+            $msg = $ok ? 'Sala renombrada.' : 'Sala no encontrada.';
+        }
+
     } elseif ($a === 'est_crear') {
-        [$ok, $msg] = crear_estudiante($pdo, $orgId, $_POST['nombre'] ?? '', $_POST['carne'] ?? '', $_POST['email'] ?? '', $_POST['password'] ?? '');
+        [$ok, $msg] = crear_estudiante($pdo, $orgId, $_POST['nombre'] ?? '', $_POST['carne'] ?? '',
+                                       $_POST['email'] ?? '', $_POST['telefono'] ?? '', $_POST['password'] ?? '');
 
     } elseif ($a === 'est_editar') {
         $id = (int)$_POST['id'];
-        $nombre = trim($_POST['nombre'] ?? ''); $carne = trim($_POST['carne'] ?? ''); $email = trim($_POST['email'] ?? '');
+        $nombre = trim($_POST['nombre'] ?? ''); $carne = trim($_POST['carne'] ?? '');
+        $email = trim($_POST['email'] ?? ''); $tel = trim($_POST['telefono'] ?? '');
         if ($nombre === '' || $carne === '') { $msg = 'Nombre y carné son obligatorios.'; }
         elseif (carne_ocupado($pdo, $orgId, $carne, $id)) { $msg = "El carné $carne ya está en uso."; }
+        elseif ($tel !== '' && !preg_match('/^[0-9+\-\s()]{7,20}$/', $tel)) { $msg = 'Teléfono inválido.'; }
         else {
-            $pdo->prepare("UPDATE users SET name=?, carne=?, email=? WHERE id=? AND org_id=? AND role='student'")
-                ->execute([$nombre, $carne, $email ?: null, $id, $orgId]);
+            $pdo->prepare("UPDATE users SET name=?, carne=?, email=?, phone=? WHERE id=? AND org_id=? AND role='student'")
+                ->execute([$nombre, $carne, $email ?: null, $tel ?: null, $id, $orgId]);
             $ok = true; $msg = 'Estudiante actualizado.';
         }
 
@@ -60,6 +74,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare("UPDATE users SET blocked_until = NULL, noshow_count = 0 WHERE id=? AND org_id=? AND role='student'")
             ->execute([(int)$_POST['id'], $orgId]);
         $ok = true; $msg = 'Bloqueo levantado y contador de inasistencias reiniciado.';
+
+    } elseif ($a === 'correo_prueba') {
+        $dest = trim($_POST['destino'] ?? '');
+        if (!filter_var($dest, FILTER_VALIDATE_EMAIL)) { $msg = 'Escriba un correo de destino válido.'; }
+        else {
+            queue_email($orgId, $dest, 'MiSalaUCR — Correo de prueba',
+                "Hola:\n\nEste es un correo de prueba enviado desde el panel de administración de MiSalaUCR.\n\nSi lo estás leyendo, el envío de correos funciona correctamente.");
+            $st = $pdo->prepare("SELECT status, error FROM email_log WHERE org_id=? ORDER BY id DESC LIMIT 1");
+            $st->execute([$orgId]); $r = $st->fetch();
+            $ok = ($r['status'] === 'enviado');
+            $msg = $ok ? "Correo de prueba enviado a $dest. Revise la bandeja (y spam)."
+                       : ($r['status'] === 'pendiente'
+                          ? 'Quedó pendiente: falta el API key de Resend en config.php.'
+                          : 'Error al enviar: ' . ($r['error'] ?: 'desconocido'));
+        }
+
+    } elseif ($a === 'correo_reintentar') {
+        $st = $pdo->prepare("SELECT * FROM email_log WHERE org_id=? AND status <> 'enviado' ORDER BY id DESC LIMIT 20");
+        $st->execute([$orgId]);
+        $envs = 0; $errs = 0;
+        foreach ($st->fetchAll() as $m) {
+            [$okS, $err] = resend_send($m['to_email'], $m['subject'], $m['body']);
+            $pdo->prepare("UPDATE email_log SET status=?, error=? WHERE id=?")
+                ->execute([$okS ? 'enviado' : 'error', $err, $m['id']]);
+            $okS ? $envs++ : $errs++;
+        }
+        $ok = $envs > 0 || ($envs + $errs === 0);
+        $msg = ($envs + $errs === 0) ? 'No había correos pendientes.'
+             : "Reintento: $envs enviados, $errs con error (últimos 20).";
 
     } elseif ($a === 'csv') {
         [$ok, $msg, $creados] = importar_csv($pdo, $orgId);
@@ -87,23 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 /* ============ helpers ============ */
-function carne_ocupado(PDO $pdo, int $orgId, string $carne, int $exceptId = 0): bool {
-    $st = $pdo->prepare("SELECT COUNT(*) c FROM users WHERE org_id=? AND carne=? AND id<>?");
-    $st->execute([$orgId, $carne, $exceptId]);
-    return (int)$st->fetch()['c'] > 0;
-}
-
-function crear_estudiante(PDO $pdo, int $orgId, string $nombre, string $carne, string $email, string $pass): array {
-    $nombre = trim($nombre); $carne = trim($carne); $email = trim($email); $pass = trim($pass);
-    if ($nombre === '' || $carne === '') return [false, 'Nombre y carné son obligatorios.'];
-    if (carne_ocupado($pdo, $orgId, $carne)) return [false, "El carné $carne ya existe."];
-    if ($pass === '') $pass = substr(str_shuffle('abcdefghjkmnpqrstuvwxyz23456789'), 0, 8);
-    if (strlen($pass) < 8) return [false, 'La contraseña debe tener al menos 8 caracteres.'];
-    $pdo->prepare("INSERT INTO users (org_id, role, name, carne, email, password_hash, must_change, active, created_at)
-                   VALUES (?,'student',?,?,?,?,1,1,?)")
-        ->execute([$orgId, $nombre, $carne, $email ?: null, password_hash($pass, PASSWORD_DEFAULT), date('Y-m-d H:i:s')]);
-    return [true, "Estudiante creado. Carné: $carne · Contraseña temporal: $pass (deberá cambiarla al entrar)."];
-}
+/* (carne_ocupado y crear_estudiante viven en lib/rules.php, compartidas con el super-admin) */
 
 function importar_csv(PDO $pdo, int $orgId): array {
     if (empty($_FILES['archivo']['tmp_name'])) return [false, 'No se recibió el archivo.', []];
@@ -116,10 +143,11 @@ function importar_csv(PDO $pdo, int $orgId): array {
         if (count($cols) === 1 && $cols[0] === '') continue;
         // saltar encabezado
         if ($fila === 1 && stripos(implode(',', $cols), 'carn') !== false) continue;
-        [$nombre, $carne, $email, $pass] = [$cols[0] ?? '', $cols[1] ?? '', $cols[2] ?? '', $cols[3] ?? ''];
+        // orden: nombre, carné, correo, teléfono, contraseña (los tres últimos opcionales)
+        [$nombre, $carne, $email, $tel, $pass] = [$cols[0] ?? '', $cols[1] ?? '', $cols[2] ?? '', $cols[3] ?? '', $cols[4] ?? ''];
         $passFinal = $pass !== '' ? $pass : substr(str_shuffle('abcdefghjkmnpqrstuvwxyz23456789'), 0, 8);
-        [$ok, $msg] = crear_estudiante($pdo, $orgId, $nombre, $carne, $email, $passFinal);
-        if ($ok) $creados[] = ['nombre' => $nombre, 'carne' => $carne, 'email' => $email, 'pass' => $passFinal];
+        [$ok, $msg] = crear_estudiante($pdo, $orgId, $nombre, $carne, $email, $tel, $passFinal);
+        if ($ok) $creados[] = ['nombre' => $nombre, 'carne' => $carne, 'email' => $email, 'tel' => $tel, 'pass' => $passFinal];
         else $errores[] = "Fila $fila: $msg";
     }
     fclose($fh);
@@ -215,9 +243,9 @@ elseif ($tab === 'estudiantes'):
 <div class="card">
   <h2 style="margin-top:0">Cuentas creadas — entregue estas credenciales a cada estudiante</h2>
   <div class="tabla-scroll"><table class="tabla">
-    <tr><th>Nombre</th><th>Carné</th><th>Correo</th><th>Contraseña temporal</th></tr>
+    <tr><th>Nombre</th><th>Carné</th><th>Correo</th><th>Teléfono</th><th>Contraseña temporal</th></tr>
     <?php foreach ($creados as $c): ?>
-    <tr><td><?= e($c['nombre']) ?></td><td><?= e($c['carne']) ?></td><td><?= e($c['email']) ?></td><td><b><?= e($c['pass']) ?></b></td></tr>
+    <tr><td><?= e($c['nombre']) ?></td><td><?= e($c['carne']) ?></td><td><?= e($c['email']) ?></td><td><?= e($c['tel'] ?? '') ?></td><td><b><?= e($c['pass']) ?></b></td></tr>
     <?php endforeach; ?>
   </table></div>
   <p class="mini">⚠️ Estas contraseñas no se volverán a mostrar. Cada estudiante deberá cambiarla en su primer ingreso.</p>
@@ -233,14 +261,15 @@ elseif ($tab === 'estudiantes'):
       <label>Nombre completo</label><input name="nombre" required>
       <label>Número de carné</label><input name="carne" required placeholder="C12345">
       <label>Correo institucional</label><input type="email" name="email" placeholder="nombre@ucr.ac.cr">
+      <label>Teléfono</label><input name="telefono" placeholder="8888-8888" maxlength="20">
       <label>Contraseña temporal (vacío = generar automática)</label><input name="password" minlength="8" placeholder="mínimo 8 caracteres">
       <br><button class="btn">Crear cuenta</button>
     </form>
   </div>
   <div class="card">
     <h2 style="margin-top:0">Carga masiva (CSV)</h2>
-    <p class="mini">Un estudiante por línea: <code>nombre,carné,correo,contraseña</code>. El correo y la contraseña son opcionales (si falta la contraseña, se genera una automática). Ejemplo:<br>
-    <code>Ana Mora Pérez,C23451,ana.mora@ucr.ac.cr</code></p>
+    <p class="mini">Un estudiante por línea: <code>nombre,carné,correo,teléfono,contraseña</code>. El correo, el teléfono y la contraseña son opcionales (si falta la contraseña, se genera una automática). Ejemplo:<br>
+    <code>Ana Mora Pérez,C23451,ana.mora@ucr.ac.cr,8888-8888</code></p>
     <form method="post" enctype="multipart/form-data">
       <?= csrf_field() ?><input type="hidden" name="a" value="csv">
       <label>Archivo .csv</label><input type="file" name="archivo" accept=".csv,text/csv" required>
@@ -257,18 +286,19 @@ elseif ($tab === 'estudiantes'):
   </form>
   <div class="tabla-scroll">
   <table class="tabla">
-    <tr><th>Nombre</th><th>Carné</th><th>Correo</th><th>No-shows</th><th>Estado</th><th>Acciones</th></tr>
-    <?php if (!$ests): ?><tr><td colspan="6" class="mini">Aún no hay estudiantes registrados.</td></tr><?php endif; ?>
+    <tr><th>Nombre</th><th>Carné</th><th>Correo</th><th>Teléfono</th><th>No-shows</th><th>Estado</th><th>Acciones</th></tr>
+    <?php if (!$ests): ?><tr><td colspan="7" class="mini">Aún no hay estudiantes registrados.</td></tr><?php endif; ?>
     <?php foreach ($ests as $s):
         $bloq = $s['blocked_until'] && $s['blocked_until'] > date('Y-m-d H:i:s'); ?>
     <tr>
       <?php if ($editar === (int)$s['id']): ?>
-      <td colspan="6">
-        <form method="post" style="display:grid; grid-template-columns: 2fr 1fr 2fr auto; gap:8px; align-items:end">
+      <td colspan="7">
+        <form method="post" style="display:grid; grid-template-columns: 2fr 1fr 2fr 1fr auto; gap:8px; align-items:end">
           <?= csrf_field() ?><input type="hidden" name="a" value="est_editar"><input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
           <div><label>Nombre</label><input name="nombre" value="<?= e($s['name']) ?>" required></div>
           <div><label>Carné</label><input name="carne" value="<?= e($s['carne']) ?>" required></div>
           <div><label>Correo</label><input name="email" value="<?= e($s['email']) ?>"></div>
+          <div><label>Teléfono</label><input name="telefono" value="<?= e($s['phone'] ?? '') ?>" maxlength="20"></div>
           <div style="display:flex; gap:6px"><button class="btn chico">Guardar</button><a class="btn gris chico" href="admin.php?tab=estudiantes">Cerrar</a></div>
         </form>
         <form method="post" style="display:flex; gap:8px; align-items:end; margin-top:8px">
@@ -281,6 +311,7 @@ elseif ($tab === 'estudiantes'):
       <td><?= e($s['name']) ?></td>
       <td><?= e($s['carne']) ?></td>
       <td><?= e($s['email']) ?></td>
+      <td><?= e($s['phone'] ?? '') ?></td>
       <td><?= (int)$s['noshow_count'] ?><?= $bloq ? ' · <span class="pill no_show">bloqueado hasta ' . e(date('d/m H:i', strtotime($s['blocked_until']))) . '</span>' : '' ?></td>
       <td><span class="pill <?= $s['active'] ? 'activa' : 'cancelada' ?>"><?= $s['active'] ? 'activa' : 'inactiva' ?></span></td>
       <td style="white-space:nowrap">
@@ -308,7 +339,13 @@ elseif ($tab === 'salas'):
   <tr><th>Sala</th><th>Capacidad</th><th>Estado</th><th>Nota</th><th></th></tr>
   <?php foreach ($rooms as $r): ?>
   <tr>
-    <td><b><?= e($r['name']) ?></b></td>
+    <td>
+      <form class="inline" method="post" style="display:flex; gap:6px; align-items:center">
+        <?= csrf_field() ?><input type="hidden" name="a" value="sala_renombrar"><input type="hidden" name="room_id" value="<?= (int)$r['id'] ?>">
+        <input name="nombre" value="<?= e($r['name']) ?>" required style="width:150px; font-weight:700">
+        <button class="btn gris chico" title="Guardar nombre">✎</button>
+      </form>
+    </td>
     <td><?= (int)$r['capacity'] ?> personas</td>
     <td><span class="pill <?= e($r['status']) ?>"><?= e($r['status']) ?></span></td>
     <td class="mini"><?= e($r['note']) ?></td>
@@ -468,6 +505,25 @@ elseif ($tab === 'correos'):
 <?php if ($sinKey): ?>
 <div class="alert bad">El envío real de correos está <b>pendiente de activar</b>: falta el API key de Resend en <code>config.php</code>. Mientras tanto, los correos quedan registrados aquí y la app funciona con normalidad.</div>
 <?php endif; ?>
+<div class="dos-col">
+  <div class="card">
+    <h2 style="margin-top:0">Enviar correo de prueba</h2>
+    <form method="post" style="display:flex; gap:8px; align-items:end">
+      <?= csrf_field() ?><input type="hidden" name="a" value="correo_prueba">
+      <div style="flex:1"><label>Destino</label><input type="email" name="destino" required placeholder="su-correo@gmail.com"></div>
+      <button class="btn chico">Enviar prueba</button>
+    </form>
+    <p class="mini">Remitente actual: <code><?= e(cfg()['mail_from']) ?></code></p>
+  </div>
+  <div class="card">
+    <h2 style="margin-top:0">Correos pendientes</h2>
+    <p class="mini">Reintenta el envío de los correos que quedaron pendientes o con error (los 20 más recientes).</p>
+    <form method="post">
+      <?= csrf_field() ?><input type="hidden" name="a" value="correo_reintentar">
+      <button class="btn gris chico">Reenviar pendientes</button>
+    </form>
+  </div>
+</div>
 <div class="card tabla-scroll">
 <table class="tabla">
   <tr><th>Fecha</th><th>Para</th><th>Asunto</th><th>Estado</th></tr>
