@@ -23,9 +23,12 @@ Trabaja con esa mentalidad: **primero no romper**.
    `CLAUDE.md` ni en mensajes de commit.
 3. **Nunca commitear ni subir a GitHub** `config.local.php` ni la base de datos
    (`data/*.sqlite`, dumps `.sql`).
-4. **No asumir que `git pull` despliega todo.** `config.local.php` **no** viaja
-   por git a propósito; en el servidor se sube/edita **a mano** (hPanel o FTP).
-   Al dar pasos de despliegue, recuérdalo siempre.
+4. **Cada `git push` a `main` publica en producción al instante** (Hostinger
+   tiene auto-deploy por git). No hay entorno de pruebas: lo que subes lo ven
+   los usuarios reales. Confirma y verifica antes de pushear cambios de
+   lógica/config/BD. `config.local.php` **no** viaja por git a propósito (está
+   en `.gitignore`), así que el despliegue no lo toca; si alguna vez falta en el
+   servidor, se sube/edita **a mano** (hPanel o FTP). Ver "Auto-deploy" abajo.
 5. **No tocar la base de datos de producción** (borrar, re-seed, migraciones
    destructivas, cambiar contraseñas) sin pedir confirmación y explicar el riesgo.
 6. **No sobrescribir el `config.php` del servidor** dando por hecho su contenido.
@@ -74,6 +77,20 @@ Cambios seguros de bajo riesgo: `assets/style.css`, textos, `LEEME.md`.
 - Correos: **Resend** (API key en `config.local.php`).
 - Repositorio: `https://github.com/adrianix360/misalaucr` (**público** → no subir
   secretos jamás).
+
+### 🚀 Auto-deploy por git (¡CADA PUSH PUBLICA EN PRODUCCIÓN!)
+- Hostinger tiene **recarga automática por git** configurada: cada `git push`
+  a `main` **se despliega solo y al instante** en www.misalaucr.com. No hay
+  paso manual de subida.
+- **Consecuencia crítica:** un push = publicar en vivo para usuarios reales.
+  No existe "staging". Antes de hacer push de algo que toque lógica, base de
+  datos o configuración, **confirma con el usuario y verifica** (sintaxis con
+  `php -l`, sin secretos en el diff). Los cambios solo visuales son de bajo
+  riesgo, pero igual van directo a producción.
+- `config.local.php` está en `.gitignore`, así que el auto-deploy **nunca lo
+  pisa**: las credenciales del servidor quedan intactas en cada despliegue.
+- Verificar que un cambio ya está en vivo: `curl -s https://www.misalaucr.com/…`
+  y buscar el marcador esperado (así se confirmó el despliegue el 2026-07-28).
 
 ## ✅ Flujo seguro antes de subir cambios o desplegar
 
