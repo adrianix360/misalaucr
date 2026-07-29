@@ -20,7 +20,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 page_top('Iniciar sesión');
 ?>
 <div class="login-box">
-  <div class="brand-big">Mi<span>Sala</span>UCR</div>
+  <div class="brand-big">
+    <span class="msu-logo msu-logo--xl msu-logo--vertical" aria-label="MiSalaUCR">
+      <span class="msu-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <span class="msu-word"><b>MiSala</b><span>UCR</span></span>
+    </span>
+  </div>
   <p class="sub" style="text-align:center">Reserva tu sala de estudio en segundos</p>
   <div class="card">
     <?php if ($error): ?><div class="alert bad"><?= e($error) ?></div><?php endif; ?>

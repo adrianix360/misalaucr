@@ -16,17 +16,22 @@ function page_top(string $title, ?array $u = null, string $active = ''): void {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#16263d">
+<meta name="theme-color" content="#123a5e">
 <title><?= e($title) ?> — MiSalaUCR</title>
+<link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/brand/app-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Spectral:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
 <header class="topbar">
   <div class="wrap bar">
-    <a class="brand" href="index.php">Mi<span>Sala</span>UCR</a>
+    <a class="msu-logo msu-logo--sm msu-logo--on-dark" href="index.php" aria-label="MiSalaUCR">
+      <span class="msu-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <span class="msu-word"><b>MiSala</b><span>UCR</span></span>
+    </a>
     <?php if ($u): ?>
     <nav>
       <?php foreach ($links as [$href, $label, $key]): ?>

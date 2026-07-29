@@ -8,7 +8,12 @@ $reason = trim($_GET['r'] ?? '');
 page_top('Asociación suspendida');
 ?>
 <div class="login-box">
-  <div class="brand-big">Mi<span>Sala</span>UCR</div>
+  <div class="brand-big">
+    <span class="msu-logo msu-logo--xl msu-logo--vertical" aria-label="MiSalaUCR">
+      <span class="msu-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <span class="msu-word"><b>MiSala</b><span>UCR</span></span>
+    </span>
+  </div>
   <div class="card" style="text-align:center">
     <h1 style="margin-top:4px">⏸️ Asociación suspendida</h1>
     <p>El servicio de reservas de tu asociación está <b>temporalmente suspendido</b>,
