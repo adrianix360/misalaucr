@@ -16,7 +16,7 @@ function page_top(string $title, ?array $u = null, string $active = ''): void {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#123a5e">
+<meta name="theme-color" content="#ffffff">
 <title><?= e($title) ?> — MiSalaUCR</title>
 <link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="assets/brand/app-icon.png">
@@ -28,7 +28,7 @@ function page_top(string $title, ?array $u = null, string $active = ''): void {
 <body>
 <header class="topbar">
   <div class="wrap bar">
-    <a class="msu-logo msu-logo--sm msu-logo--on-dark" href="index.php" aria-label="MiSalaUCR">
+    <a class="msu-logo msu-logo--sm" href="index.php" aria-label="MiSalaUCR">
       <span class="msu-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
       <span class="msu-word"><b>MiSala</b><span>UCR</span></span>
     </a>
