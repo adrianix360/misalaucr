@@ -151,8 +151,17 @@ function db_init(PDO $pdo, string $driver): void {
     if ($n === 0) db_seed($pdo);
 }
 
+/** Genera una contraseña aleatoria legible (sin caracteres ambiguos). */
+function seed_random_pass(int $len = 12): string {
+    $abc = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    $out = '';
+    for ($i = 0; $i < $len; $i++) $out .= $abc[random_int(0, strlen($abc) - 1)];
+    return $out;
+}
+
 function db_seed(PDO $pdo): void {
-    $now = date('Y-m-d H:i:s');
+    $now  = date('Y-m-d H:i:s');
+    $seed = cfg()['seed'] ?? [];
 
     $pdo->prepare("INSERT INTO organizations (name, active, open_hour, close_hour, days_open,
         max_blocks_session, max_hours_week, week_start, checkin_minutes, noshow_limit, noshow_block_days, created_at)
@@ -165,13 +174,33 @@ function db_seed(PDO $pdo): void {
             ->execute([$orgId, $name]);
     }
 
+    // Credenciales iniciales: salen de config.local.php; si faltan, se generan.
+    $generated  = [];
+    $superEmail = $seed['super_email'] ?: 'super@misalaucr.local';
+    $superPass  = (string)($seed['super_pass'] ?? '');
+    if ($superPass === '') { $superPass = seed_random_pass(); $generated[] = "Super-admin ($superEmail): $superPass"; }
+
+    $adminEmail = $seed['admin_email'] ?: 'admin@misalaucr.local';
+    $adminPass  = (string)($seed['admin_pass'] ?? '');
+    if ($adminPass === '') { $adminPass = seed_random_pass(); $generated[] = "Admin ($adminEmail): $adminPass"; }
+
     // Super-administrador de la plataforma
     $pdo->prepare("INSERT INTO users (org_id, role, name, email, password_hash, must_change, active, created_at)
         VALUES (NULL,'super','Super Administrador',?,?,0,1,?)")
-        ->execute(['castroramirez702@gmail.com', password_hash('Acracr12?', PASSWORD_DEFAULT), $now]);
+        ->execute([$superEmail, password_hash($superPass, PASSWORD_DEFAULT), $now]);
 
     // Administrador de la asociación (placeholder: edítelo desde el panel de super-admin)
     $pdo->prepare("INSERT INTO users (org_id, role, name, email, password_hash, must_change, active, created_at)
         VALUES (?,'admin','Admin Ingeniería Civil',?,?,1,1,?)")
-        ->execute([$orgId, 'admin.civil@misalaucr.test', password_hash('CivilUCR2026!', PASSWORD_DEFAULT), $now]);
+        ->execute([$orgId, $adminEmail, password_hash($adminPass, PASSWORD_DEFAULT), $now]);
+
+    // Si alguna contraseña se generó al azar, se guarda una única vez en texto.
+    if ($generated) {
+        $file = __DIR__ . '/../data/credenciales_iniciales.txt';
+        if (!is_dir(dirname($file))) @mkdir(dirname($file), 0775, true);
+        @file_put_contents($file,
+            "MiSalaUCR — credenciales iniciales generadas automáticamente ($now).\n" .
+            "Cámbielas al iniciar sesión y borre este archivo.\n\n" .
+            implode("\n", $generated) . "\n");
+    }
 }

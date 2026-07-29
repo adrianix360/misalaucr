@@ -1,9 +1,13 @@
-# Configuración con credenciales (no subir)
-config.php
+# Secretos / configuración local (NO subir)
+config.local.php
 
-# Base de datos y datos de estudiantes (no subir)
-data/
+# Base de datos y datos sensibles (NO subir)
+data/*.sqlite
+data/*.sqlite-journal
+data/*.sqlite-wal
+data/credenciales_iniciales.txt
 
 # Archivos del sistema
 .DS_Store
 Thumbs.db
+*.log

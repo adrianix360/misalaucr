@@ -16,7 +16,11 @@ function page_top(string $title, ?array $u = null, string $active = ''): void {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#16263d">
 <title><?= e($title) ?> — MiSalaUCR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Spectral:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -39,7 +43,7 @@ function page_top(string $title, ?array $u = null, string $active = ''): void {
 
 function page_bottom(): void {
     ?></main>
-<footer class="foot">MiSalaUCR · Sistema de reservación de salas de estudio</footer>
+<footer class="foot">MiSalaUCR · Sistema de reservación de salas de estudio · <?= date('Y') ?></footer>
 </body>
 </html><?php
 }

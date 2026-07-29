@@ -4,15 +4,32 @@ Aplicación multi-organización para que asociaciones estudiantiles gestionen la
 reservación de sus salas de estudio. Construida en PHP (compatible con cualquier
 plan de Hostinger) con base de datos SQLite (local) o MySQL (producción).
 
+## Configuración (antes de arrancar)
+
+Los datos sensibles no van en el repositorio. Copie la plantilla y complete sus valores:
+
+```
+cp config.example.php config.local.php
+```
+
+En `config.local.php` defina el API key de Resend, las credenciales de MySQL
+(en producción) y las **contraseñas iniciales** del super-admin y del admin
+(`seed`). Este archivo está en `.gitignore` y nunca se sube.
+
 ## Cuentas iniciales
 
-| Rol | Usuario | Contraseña | Nota |
-|---|---|---|---|
-| Super-admin (plataforma) | `castroramirez702@gmail.com` | `Acracr12?` | Gestiona organizaciones |
-| Admin Ing. Civil | `admin.civil@misalaucr.test` | `CivilUCR2026!` | **Placeholder**: cambie correo y contraseña desde el panel de super-admin cuando tenga los datos reales |
+Se crean al generar la base de datos por primera vez, con las contraseñas que
+usted ponga en `config.local.php` → `seed`:
 
-Los estudiantes no se auto-registran: el admin los crea (uno por uno o por CSV)
-y entran con **carné + contraseña temporal**, que deben cambiar al primer ingreso.
+| Rol | Usuario (por defecto) | Contraseña |
+|---|---|---|
+| Super-admin (plataforma) | `castroramirez702@gmail.com` | la que defina en `seed.super_pass` |
+| Admin de la asociación | `admin.civil@misalaucr.test` | la que defina en `seed.admin_pass` (placeholder: cámbielo desde el panel de super-admin) |
+
+Si deja alguna contraseña vacía, se genera una segura al azar y se guarda una
+única vez en `data/credenciales_iniciales.txt`. Los estudiantes no se
+auto-registran: el admin los crea (uno por uno o por CSV) y entran con
+**carné + contraseña temporal**, que deben cambiar al primer ingreso.
 
 ## Probar en su computadora (opción rápida)
 
@@ -32,12 +49,14 @@ abra http://localhost/misalaucr.
 
 1. **Base de datos**: en hPanel → Bases de datos → MySQL, cree una base y un
    usuario. Anote nombre, usuario y contraseña.
-2. **Configuración**: en `config.php` cambie:
+2. **Configuración**: en `config.local.php` (copiado de `config.example.php`) ponga:
    ```php
-   'driver' => 'mysql',
-   'mysql' => ['host' => 'localhost', 'dbname' => 'SU_BD', 'user' => 'SU_USUARIO', 'pass' => 'SU_CLAVE'],
+   'db' => [
+       'driver' => 'mysql',
+       'mysql'  => ['host' => 'localhost', 'dbname' => 'SU_BD', 'user' => 'SU_USUARIO', 'pass' => 'SU_CLAVE'],
+   ],
+   'base_url' => 'https://SU_DOMINIO',
    ```
-   y ponga la URL pública en `'base_url'`.
 3. **Subir archivos**: suba TODO el contenido de esta carpeta a `public_html`
    (por el Administrador de archivos de hPanel o FTP). Las tablas y datos
    iniciales se crean solos en la primera visita.
@@ -53,7 +72,7 @@ abra http://localhost/misalaucr.
 
 1. Cree cuenta gratuita en https://resend.com (3,000 correos/mes gratis).
 2. Verifique su dominio y cree un API key.
-3. En `config.php` pegue el key en `'resend_api_key'` y ajuste `'mail_from'`.
+3. En `config.local.php` pegue el key en `'resend_api_key'` y ajuste `'mail_from'`.
 
 Mientras no haya API key, la app funciona igual: los correos de confirmación,
 recordatorio y bloqueo quedan registrados en el panel Admin → Correos.
