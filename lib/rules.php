@@ -112,11 +112,14 @@ function process_automatic(): void {
             continue;
         }
         $pdo->prepare("UPDATE reservations SET reminder_sent = 1 WHERE id = ?")->execute([$r['id']]);
-        if ($r['email']) queue_email((int)$r['org_id'], $r['email'],
-            'MiSalaUCR — Recordatorio de tu reserva',
-            "Hola {$r['uname']}:\n\nTe recordamos tu reserva de hoy en {$r['room_name']} de " .
-            sprintf('%d:00 a %d:00', $r['start_hour'], $r['end_hour']) .
-            ".\n\nRecuerda confirmar tu llegada en la app durante los primeros 10 minutos, o el espacio se liberará.");
+        if ($r['email']) {
+            $stOrg = $pdo->prepare("SELECT checkin_minutes FROM organizations WHERE id = ?");
+            $stOrg->execute([(int)$r['org_id']]);
+            $checkinMin = (int)($stOrg->fetch()['checkin_minutes'] ?? 10);
+            queue_email((int)$r['org_id'], $r['email'],
+                'MiSalaUCR — Recordatorio de tu reserva',
+                email_recordatorio($r['uname'], $r['room_name'], (int)$r['start_hour'], (int)$r['end_hour'], $checkinMin));
+        }
     }
 }
 
@@ -217,10 +220,8 @@ function try_reserve(array $u, array $org, int $roomId, int $startHour, int $nBl
 
     if ($u['email']) queue_email((int)$org['id'], $u['email'],
         'MiSalaUCR — Reserva confirmada',
-        "Hola {$u['name']}:\n\nTu reserva quedó confirmada:\n\nSala: {$room['name']}\nFecha: " .
-        date('d/m/Y', strtotime($date)) . "\nHorario: $startHour:00 a $endHour:00\n\n" .
-        "Al iniciar tu bloque tendrás {$org['checkin_minutes']} minutos para confirmar tu llegada en la app; " .
-        "si no lo haces, el espacio se libera y cuenta como inasistencia.");
+        email_reserva_confirmada($u['name'], $room['name'], date('d/m/Y', strtotime($date)),
+            $startHour, $endHour, (int)$org['checkin_minutes']));
 
     return [true, "Reserva confirmada: {$room['name']}, $startHour:00–$endHour:00."];
 }
