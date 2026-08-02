@@ -55,6 +55,8 @@ function db_init(PDO $pdo, string $driver): void {
         checkin_minutes INT NOT NULL DEFAULT 10,
         noshow_limit INT NOT NULL DEFAULT 3,
         noshow_block_days INT NOT NULL DEFAULT 7,
+        booking_horizon VARCHAR(12) NOT NULL DEFAULT 'mismo_dia', -- mismo_dia|dia_siguiente|semana
+        booking_release_hour INT NOT NULL DEFAULT 7,
         created_at VARCHAR(19) NOT NULL
     )$suf");
 
@@ -80,6 +82,20 @@ function db_init(PDO $pdo, string $driver): void {
         capacity INT NOT NULL DEFAULT 6,
         status VARCHAR(15) NOT NULL DEFAULT 'disponible', -- 'disponible' | 'bloqueada'
         note VARCHAR(255) NULL
+    )$suf");
+
+    // Restricciones puntuales de sala: cierre recurrente por día de semana (weekday)
+    // o cierre de una fecha exacta (bdate). Exactamente uno de los dos va lleno.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS room_blackouts (
+        id $PK,
+        org_id INT NOT NULL,
+        room_id INT NOT NULL,
+        weekday INT NULL,
+        bdate VARCHAR(10) NULL,
+        start_hour INT NOT NULL,
+        end_hour INT NOT NULL,
+        label VARCHAR(150) NULL,
+        created_at VARCHAR(19) NOT NULL
     )$suf");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS reservations (
@@ -143,9 +159,15 @@ function db_init(PDO $pdo, string $driver): void {
     // Migraciones suaves: columnas nuevas sobre bases ya existentes
     foreach (["ALTER TABLE organizations ADD COLUMN frozen_reason VARCHAR(255) NULL",
               "ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL",
-              "ALTER TABLE organizations ADD COLUMN theme VARCHAR(20) NOT NULL DEFAULT 'none'"] as $sql) {
+              "ALTER TABLE organizations ADD COLUMN theme VARCHAR(20) NOT NULL DEFAULT 'none'",
+              "ALTER TABLE organizations ADD COLUMN booking_horizon VARCHAR(12) NOT NULL DEFAULT 'mismo_dia'",
+              "ALTER TABLE organizations ADD COLUMN booking_release_hour INT NULL"] as $sql) {
         try { $pdo->exec($sql); } catch (PDOException $e) { /* la columna ya existe */ }
     }
+
+    // Asociaciones ya existentes: su hora de apertura de reservas empieza igual
+    // a su open_hour actual (mismo comportamiento de hoy), y desde aquí queda editable aparte.
+    $pdo->exec("UPDATE organizations SET booking_release_hour = open_hour WHERE booking_release_hour IS NULL");
 
     // Datos iniciales (solo la primera vez)
     $n = (int)$pdo->query("SELECT COUNT(*) AS c FROM organizations")->fetch()['c'];

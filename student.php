@@ -14,13 +14,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $a = $_POST['a'] ?? '';
     if ($a === 'reservar') {
-        [$ok, $msg] = try_reserve($u, $org, (int)$_POST['room_id'], (int)$_POST['hora'], (int)$_POST['bloques']);
+        [$ok, $msg] = try_reserve($u, $org, (int)$_POST['room_id'], (int)$_POST['hora'], (int)$_POST['bloques'], $_POST['fecha'] ?? null);
     } elseif ($a === 'cancelar') {
         [$ok, $msg] = cancel_reservation($u, (int)$_POST['res_id']);
     } elseif ($a === 'checkin') {
         [$ok, $msg] = do_checkin($u, (int)$_POST['res_id']);
     } elseif ($a === 'fila_unirse') {
-        [$ok, $msg] = join_waitlist($u, $org, (int)$_POST['room_id'], (int)$_POST['hora'], (int)$_POST['bloques']);
+        [$ok, $msg] = join_waitlist($u, $org, (int)$_POST['room_id'], (int)$_POST['hora'], (int)$_POST['bloques'], $_POST['fecha'] ?? null);
     } elseif ($a === 'fila_cancelar') {
         [$ok, $msg] = cancel_waitlist($u, (int)$_POST['wl_id']);
     } elseif ($a === 'perfil') {
@@ -33,21 +33,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } else { $ok = false; $msg = 'Acción desconocida.'; }
     flash_set($ok, $msg);
-    header('Location: student.php'); exit;
+    header('Location: student.php' . (!empty($_POST['fecha']) ? '?fecha=' . urlencode($_POST['fecha']) : '')); exit;
 }
 
 /* --- datos de la vista --- */
 $hoy    = today();
 $ahora  = time();
 $horaAct = (int)date('G');
-$abierto = is_open_day($org, $hoy);
+$dias    = reservable_dates($org);
+$fecha   = $_GET['fecha'] ?? $hoy;
+if (!in_array($fecha, $dias, true)) $fecha = $dias[0] ?? $hoy;
+$esHoy   = $fecha === $hoy;
+$abierto = is_open_day($org, $fecha);
 $horas   = block_hours($org);
 $rooms   = db()->prepare("SELECT * FROM rooms WHERE org_id = ? ORDER BY name");
 $rooms->execute([$org['id']]);
 $rooms = $rooms->fetchAll();
-$occ = day_occupancy((int)$org['id'], $hoy);
+$occ = day_occupancy((int)$org['id'], $fecha);
+$blackouts = day_blackout_map((int)$org['id'], $fecha);
 
-$usadas = weekly_used_hours((int)$u['id'], $org, $hoy);
+$usadas = weekly_used_hours((int)$u['id'], $org, $fecha);
 $rest   = max(0, (int)$org['max_hours_week'] - $usadas);
 $bloqueo = student_block_reason($u);
 
@@ -57,9 +62,9 @@ $st = db()->prepare(
      WHERE r.user_id = ? ORDER BY r.rdate DESC, r.start_hour DESC LIMIT 12");
 $st->execute([$u['id']]);
 $mias = $st->fetchAll();
-$misBloquesHoy = [];
-foreach ($mias as $m) if ($m['rdate'] === $hoy && $m['status'] === 'activa')
-    foreach (range($m['start_hour'], $m['end_hour'] - 1) as $h) $misBloquesHoy[$m['room_id']][$h] = true;
+$misBloquesDia = [];
+foreach ($mias as $m) if ($m['rdate'] === $fecha && $m['status'] === 'activa')
+    foreach (range($m['start_hour'], $m['end_hour'] - 1) as $h) $misBloquesDia[$m['room_id']][$h] = true;
 
 // selección pendiente (tocó un bloque libre) o fila de espera (tocó uno ocupado)
 $sel = null;
@@ -159,10 +164,18 @@ if ($activas): ?>
 <?php endforeach; endif; ?>
 
 <h2><?= e(tema_txt($tema, 'salas_h2', 'Salas de hoy')) ?></h2>
+<?php if (count($dias) > 1): ?>
+<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px">
+  <?php foreach ($dias as $d): ?>
+    <a class="btn chico <?= $d === $fecha ? '' : 'gris' ?>" href="student.php?fecha=<?= e($d) ?>#salas"><?= e(dia_picker_label($d, $hoy)) ?></a>
+  <?php endforeach; ?>
+</div>
+<?php endif; ?>
+<a id="salas"></a>
 <?php if (!$abierto): ?>
-  <div class="card">Hoy las salas no están en operación. Horario: lunes a viernes, <?= (int)$org['open_hour'] ?>:00–<?= (int)$org['close_hour'] ?>:00. Las reservas del día se abren a las <?= (int)$org['open_hour'] ?>:00 a.m.</div>
-<?php elseif (($preApertura = $ahora < strtotime(dt($hoy, (int)$org['open_hour']))) && true): ?>
-  <div class="card">Las reservas de hoy se abren a las <b><?= (int)$org['open_hour'] ?>:00 a.m.</b> A esa hora se habilitan todos los bloques del día, por orden de llegada.</div>
+  <div class="card">Ese día las salas no están en operación. Horario: lunes a viernes, <?= (int)$org['open_hour'] ?>:00–<?= (int)$org['close_hour'] ?>:00.</div>
+<?php elseif ($esHoy && ($preApertura = $ahora < strtotime(dt($fecha, (int)$org['booking_release_hour'])))): ?>
+  <div class="card">Las reservas de hoy se abren a las <b><?= (int)$org['booking_release_hour'] ?>:00 a.m.</b> A esa hora se habilitan todos los bloques del día, por orden de llegada.</div>
 <?php else: ?>
 <p class="sub"><?= tema_txt($tema, 'salas_ayuda', 'Toca un bloque <b style="color:#10613f">libre</b> para reservarlo. Solo se reserva para hoy.') ?></p>
 <div class="card">
@@ -175,16 +188,18 @@ if ($activas): ?>
       <div class="hora"><?= $h ?>:00</div>
       <?php foreach ($rooms as $r):
         $rid = (int)$r['id'];
-        $vencido = $ahora >= strtotime(dt($hoy, $h)) + 60 * (int)$org['checkin_minutes'];
+        $vencido = $ahora >= strtotime(dt($fecha, $h)) + 60 * (int)$org['checkin_minutes'];
         if ($r['status'] !== 'disponible') {
             echo '<span class="blk cerrado">Mant.</span>';
-        } elseif (!empty($misBloquesHoy[$rid][$h])) {
+        } elseif (isset($blackouts[$rid][$h])) {
+            echo '<span class="blk cerrado" title="' . e($blackouts[$rid][$h]) . '">Restringido</span>';
+        } elseif (!empty($misBloquesDia[$rid][$h])) {
             echo '<span class="blk mio">Tuya</span>';
         } elseif (isset($occ[$rid][$h])) {
             if (!$vencido && !$bloqueo && $rest > 0) {
                 $on = $fila && $fila['room_id'] === $rid && $fila['hora'] === $h;
                 echo '<a class="blk ocupado" style="text-decoration:none' . ($on ? ';outline:2px solid var(--azul)' : '') .
-                     '" title="Unirse a la fila de espera" href="student.php?fila=' . $rid . ',' . $h . '#fila">Ocupado ⏳</a>';
+                     '" title="Unirse a la fila de espera" href="student.php?fecha=' . $fecha . '&fila=' . $rid . ',' . $h . '#fila">Ocupado ⏳</a>';
             } else {
                 echo '<span class="blk ocupado">' . e(tema_txt($tema, 'blk_ocupado', 'Ocupado')) . '</span>';
             }
@@ -194,7 +209,7 @@ if ($activas): ?>
             echo '<span class="blk ocupado">Libre</span>';
         } else {
             $on = $sel && $sel['room_id'] === $rid && $sel['hora'] === $h;
-            echo '<a class="blk libre" style="text-decoration:none' . ($on ? ';outline:2px solid var(--verde)' : '') . '" href="student.php?sel=' . $rid . ',' . $h . '#confirmar">Libre</a>';
+            echo '<a class="blk libre" style="text-decoration:none' . ($on ? ';outline:2px solid var(--verde)' : '') . '" href="student.php?fecha=' . $fecha . '&sel=' . $rid . ',' . $h . '#confirmar">Libre</a>';
         }
       endforeach; ?>
     <?php endforeach; ?>
@@ -207,15 +222,17 @@ if ($activas): ?>
     $puede2 = $rest >= 2 && (int)$org['max_blocks_session'] >= 2
               && ($h + 2) <= (int)$org['close_hour']
               && empty($occ[$sel['room_id']][$h + 1])
-              && empty($misBloquesHoy[$sel['room_id']][$h + 1]);
-    if ($roomSel && $roomSel['status'] === 'disponible' && empty($occ[$sel['room_id']][$h])): ?>
+              && empty($misBloquesDia[$sel['room_id']][$h + 1])
+              && !isset($blackouts[$sel['room_id']][$h + 1]);
+    if ($roomSel && $roomSel['status'] === 'disponible' && empty($occ[$sel['room_id']][$h]) && !isset($blackouts[$sel['room_id']][$h])): ?>
 <div class="confirmar" id="confirmar">
-  <b><?= e(sprintf(tema_txt($tema, 'confirmar', 'Reservar %s, hoy a las %d:00'), $roomSel['name'], $h)) ?></b>
+  <b><?= e(sprintf(tema_txt($tema, 'confirmar', 'Reservar %s, %s a las %d:00'), $roomSel['name'], dia_frase($fecha, $hoy), $h)) ?></b>
   <form method="post" style="margin-top:8px">
     <?= csrf_field() ?>
     <input type="hidden" name="a" value="reservar">
     <input type="hidden" name="room_id" value="<?= $sel['room_id'] ?>">
     <input type="hidden" name="hora" value="<?= $h ?>">
+    <input type="hidden" name="fecha" value="<?= e($fecha) ?>">
     <label>Duración</label>
     <select name="bloques">
       <option value="1"><?= $h ?>:00 – <?= $h + 1 ?>:00 (1 hora)</option>
@@ -233,9 +250,9 @@ if ($activas): ?>
     $roomF = null; foreach ($rooms as $r) if ((int)$r['id'] === $fila['room_id']) $roomF = $r;
     $hf = $fila['hora'];
     $puede2f = $rest >= 2 && (int)$org['max_blocks_session'] >= 2 && ($hf + 2) <= (int)$org['close_hour'];
-    if ($roomF && $roomF['status'] === 'disponible' && isset($occ[$fila['room_id']][$hf])): ?>
+    if ($roomF && $roomF['status'] === 'disponible' && isset($occ[$fila['room_id']][$hf]) && !isset($blackouts[$fila['room_id']][$hf])): ?>
 <div class="confirmar" id="fila">
-  <b>Fila de espera: <?= e($roomF['name']) ?>, hoy a las <?= $hf ?>:00</b>
+  <b>Fila de espera: <?= e($roomF['name']) ?>, <?= e(dia_frase($fecha, $hoy)) ?> a las <?= $hf ?>:00</b>
   <p class="mini" style="margin:6px 0">Este bloque está ocupado. Si se libera, la reserva se te asignará
   automáticamente en orden de llegada y te avisaremos por correo (recuerda el check-in de los primeros
   <?= (int)$org['checkin_minutes'] ?> minutos).</p>
@@ -244,6 +261,7 @@ if ($activas): ?>
     <input type="hidden" name="a" value="fila_unirse">
     <input type="hidden" name="room_id" value="<?= $fila['room_id'] ?>">
     <input type="hidden" name="hora" value="<?= $hf ?>">
+    <input type="hidden" name="fecha" value="<?= e($fecha) ?>">
     <label>Duración deseada</label>
     <select name="bloques">
       <option value="1"><?= $hf ?>:00 – <?= $hf + 1 ?>:00 (1 hora)</option>
@@ -292,4 +310,20 @@ function strftime_es(string $ymd): string {
     $meses = [1=>'enero','febrero','marzo','abril','mayo','junio','julio','agosto','setiembre','octubre','noviembre','diciembre'];
     $t = strtotime($ymd);
     return $dias[date('l', $t)] . ' ' . date('j', $t) . ' de ' . $meses[(int)date('n', $t)];
+}
+
+/** Etiqueta corta para el selector de fecha: "Hoy", "Mañana" o "Mié 6". */
+function dia_picker_label(string $d, string $hoy): string {
+    if ($d === $hoy) return 'Hoy';
+    if ($d === date('Y-m-d', strtotime("$hoy +1 day"))) return 'Mañana';
+    $abrev = ['Mon'=>'Lun','Tue'=>'Mar','Wed'=>'Mié','Thu'=>'Jue','Fri'=>'Vie','Sat'=>'Sáb','Sun'=>'Dom'];
+    $t = strtotime($d);
+    return $abrev[date('D', $t)] . ' ' . date('j', $t);
+}
+
+/** Frase corta para encabezados de confirmación: "hoy", "mañana" o "el 6/12". */
+function dia_frase(string $d, string $hoy): string {
+    if ($d === $hoy) return 'hoy';
+    if ($d === date('Y-m-d', strtotime("$hoy +1 day"))) return 'mañana';
+    return 'el ' . date('d/m', strtotime($d));
 }

@@ -34,6 +34,24 @@ function block_hours(array $org): array {
     return range((int)$org['open_hour'], (int)$org['close_hour'] - 1);
 }
 
+/** Última fecha reservable según la política de la organización. */
+function max_reservable_date(array $org): string {
+    $hoy = today();
+    if ($org['booking_horizon'] === 'dia_siguiente') return date('Y-m-d', strtotime("$hoy +1 day"));
+    if ($org['booking_horizon'] === 'semana') return week_bounds($org, $hoy)[1];
+    return $hoy; // mismo_dia
+}
+
+/** Fechas reservables (hoy en adelante, según la política, filtradas por días de operación). */
+function reservable_dates(array $org): array {
+    $max = max_reservable_date($org);
+    $out = [];
+    for ($d = today(); $d <= $max; $d = date('Y-m-d', strtotime("$d +1 day"))) {
+        if (is_open_day($org, $d)) $out[] = $d;
+    }
+    return $out;
+}
+
 /* ---------- procesos automáticos (se ejecutan en cada visita y vía cron.php) ---------- */
 
 function process_automatic(): void {
@@ -155,23 +173,55 @@ function day_occupancy(int $orgId, string $date): array {
     return $map;
 }
 
+/** Mapa de restricciones del día: [room_id][hour] => etiqueta (o 'Restringido' si no tiene). */
+function day_blackout_map(int $orgId, string $date): array {
+    $weekday = (int)date('N', strtotime($date));
+    $st = db()->prepare(
+        "SELECT b.room_id, b.start_hour, b.end_hour, b.label FROM room_blackouts b
+         JOIN rooms rm ON rm.id = b.room_id
+         WHERE rm.org_id = ? AND (b.bdate = ? OR (b.bdate IS NULL AND b.weekday = ?))");
+    $st->execute([$orgId, $date, $weekday]);
+    $map = [];
+    foreach ($st->fetchAll() as $b) {
+        for ($h = (int)$b['start_hour']; $h < (int)$b['end_hour']; $h++) {
+            $map[$b['room_id']][$h] = $b['label'] ?: 'Restringido';
+        }
+    }
+    return $map;
+}
+
+/** ¿La sala tiene una restricción activa en esa fecha+hora? */
+function room_blackout_activo(int $roomId, string $date, int $hour): bool {
+    $weekday = (int)date('N', strtotime($date));
+    $st = db()->prepare(
+        "SELECT COUNT(*) c FROM room_blackouts
+         WHERE room_id = ? AND start_hour <= ? AND end_hour > ?
+           AND (bdate = ? OR (bdate IS NULL AND weekday = ?))");
+    $st->execute([$roomId, $hour, $hour, $date, $weekday]);
+    return (int)$st->fetch()['c'] > 0;
+}
+
 /* ---------- acciones ---------- */
 
 /**
- * Intenta crear una reserva HOY. $nBlocks = 1 o 2 bloques consecutivos.
+ * Intenta crear una reserva para $date (según la política de reserva anticipada
+ * de la organización). $nBlocks = 1 o 2 bloques consecutivos.
  * Devuelve [true, mensaje] o [false, motivo].
  */
-function try_reserve(array $u, array $org, int $roomId, int $startHour, int $nBlocks): array {
+function try_reserve(array $u, array $org, int $roomId, int $startHour, int $nBlocks, ?string $date = null): array {
     $pdo  = db();
-    $date = today();
+    $date = $date ?? today();
     $now  = time();
+    $esHoy = $date === today();
 
     if ((int)$u['org_id'] !== (int)$org['id']) return [false, 'No perteneces a esta organización.'];
     if ($msg = student_block_reason($u)) return [false, $msg];
     if (!$org['active']) return [false, 'La organización no está activa.'];
-    if (!is_open_day($org, $date)) return [false, 'Hoy las salas no están en operación (lunes a viernes).'];
-    if ($now < strtotime(dt($date, (int)$org['open_hour']))) {
-        return [false, 'Las reservas del día se abren a las ' . (int)$org['open_hour'] . ':00 a.m.'];
+    if (!in_array($date, reservable_dates($org), true)) {
+        return [false, 'Esa fecha no está disponible para reservar.'];
+    }
+    if ($esHoy && $now < strtotime(dt($date, (int)$org['booking_release_hour']))) {
+        return [false, 'Las reservas del día se abren a las ' . (int)$org['booking_release_hour'] . ':00 a.m.'];
     }
 
     $nBlocks = max(1, min($nBlocks, (int)$org['max_blocks_session']));
@@ -180,7 +230,7 @@ function try_reserve(array $u, array $org, int $roomId, int $startHour, int $nBl
         return [false, 'Horario fuera del rango operativo.'];
     }
 
-    // Solo se reserva el mismo día y el bloque no debe haber vencido
+    // Si es hoy, el bloque no debe haber vencido ya
     // (se permite tomar el bloque en curso durante sus primeros minutos de check-in).
     $graceEnd = strtotime(dt($date, $startHour)) + 60 * (int)$org['checkin_minutes'];
     if ($now >= $graceEnd) return [false, 'Ese bloque ya pasó. Elige un bloque más tarde.'];
@@ -191,6 +241,12 @@ function try_reserve(array $u, array $org, int $roomId, int $startHour, int $nBl
     $room = $st->fetch();
     if (!$room) return [false, 'Sala no encontrada.'];
     if ($room['status'] !== 'disponible') return [false, 'La sala está bloqueada por mantenimiento.'];
+
+    for ($h = $startHour; $h < $endHour; $h++) {
+        if (room_blackout_activo($roomId, $date, $h)) {
+            return [false, 'Ese horario está restringido para esta sala.'];
+        }
+    }
 
     // Límite semanal
     $used = weekly_used_hours((int)$u['id'], $org, $date);
@@ -298,17 +354,20 @@ function log_activity(?int $orgId, string $kind, string $desc): void {
  * Inscribe al estudiante en la fila de espera de un bloque exacto (sala+fecha+hora).
  * Valida las mismas condiciones base que una reserva normal.
  */
-function join_waitlist(array $u, array $org, int $roomId, int $startHour, int $nBlocks): array {
+function join_waitlist(array $u, array $org, int $roomId, int $startHour, int $nBlocks, ?string $date = null): array {
     $pdo  = db();
-    $date = today();
+    $date = $date ?? today();
     $now  = time();
+    $esHoy = $date === today();
 
     if ((int)$u['org_id'] !== (int)$org['id']) return [false, 'No perteneces a esta organización.'];
     if ($msg = student_block_reason($u)) return [false, $msg];
     if (!$org['active']) return [false, 'La organización no está activa.'];
-    if (!is_open_day($org, $date)) return [false, 'Hoy las salas no están en operación.'];
-    if ($now < strtotime(dt($date, (int)$org['open_hour']))) {
-        return [false, 'Las reservas del día se abren a las ' . (int)$org['open_hour'] . ':00 a.m.'];
+    if (!in_array($date, reservable_dates($org), true)) {
+        return [false, 'Esa fecha no está disponible para reservar.'];
+    }
+    if ($esHoy && $now < strtotime(dt($date, (int)$org['booking_release_hour']))) {
+        return [false, 'Las reservas del día se abren a las ' . (int)$org['booking_release_hour'] . ':00 a.m.'];
     }
 
     $nBlocks = max(1, min($nBlocks, (int)$org['max_blocks_session']));
@@ -325,6 +384,9 @@ function join_waitlist(array $u, array $org, int $roomId, int $startHour, int $n
     $room = $st->fetch();
     if (!$room) return [false, 'Sala no encontrada.'];
     if ($room['status'] !== 'disponible') return [false, 'La sala está bloqueada por mantenimiento.'];
+    if (room_blackout_activo($roomId, $date, $startHour)) {
+        return [false, 'Ese horario está restringido para esta sala.'];
+    }
 
     $left = (int)$org['max_hours_week'] - weekly_used_hours((int)$u['id'], $org, $date);
     if ($nBlocks > $left) {
@@ -397,6 +459,11 @@ function promote_waitlist(int $roomId, string $rdate, int $startHour): void {
         // El período del bloque no debe haber terminado.
         if (time() >= strtotime(dt($rdate, $endHour))) continue;
         if ($endHour > (int)$org['close_hour']) continue;
+
+        // Restricción agregada después de que alguien entrara a la fila.
+        $blackout = false;
+        for ($h = $startHour; $h < $endHour; $h++) if (room_blackout_activo($roomId, $rdate, $h)) { $blackout = true; break; }
+        if ($blackout) continue;
 
         $st = $pdo->prepare("SELECT * FROM users WHERE id = ? AND active = 1");
         $st->execute([(int)$w['user_id']]);

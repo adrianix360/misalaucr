@@ -109,19 +109,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($creados) $_SESSION['csv_creados'] = $creados;
 
     } elseif ($a === 'config') {
-        $campos = ['open_hour','close_hour','max_blocks_session','max_hours_week','week_start','checkin_minutes','noshow_limit','noshow_block_days'];
+        $campos = ['open_hour','close_hour','max_blocks_session','max_hours_week','week_start','checkin_minutes','noshow_limit','noshow_block_days','booking_release_hour'];
         $vals = [];
         foreach ($campos as $c) $vals[] = (int)$_POST[$c];
+        $horizon = in_array($_POST['booking_horizon'] ?? '', ['mismo_dia','dia_siguiente','semana'], true) ? $_POST['booking_horizon'] : 'mismo_dia';
         $dias = implode(',', array_map('intval', $_POST['dias'] ?? []));
         if ((int)$_POST['open_hour'] >= (int)$_POST['close_hour']) { $msg = 'La hora de apertura debe ser menor que la de cierre.'; }
         elseif ($dias === '') { $msg = 'Seleccione al menos un día de operación.'; }
         else {
-            $vals[] = $dias; $vals[] = $orgId;
+            $vals[] = $horizon; $vals[] = $dias; $vals[] = $orgId;
             $pdo->prepare("UPDATE organizations SET open_hour=?, close_hour=?, max_blocks_session=?, max_hours_week=?,
-                           week_start=?, checkin_minutes=?, noshow_limit=?, noshow_block_days=?, days_open=? WHERE id=?")
+                           week_start=?, checkin_minutes=?, noshow_limit=?, noshow_block_days=?, booking_release_hour=?,
+                           booking_horizon=?, days_open=? WHERE id=?")
                 ->execute($vals);
             $ok = true; $msg = 'Configuración guardada.';
         }
+
+    } elseif ($a === 'restriccion_crear_semanal') {
+        $roomId = (int)$_POST['room_id'];
+        $weekday = (int)$_POST['weekday'];
+        $startHour = (int)$_POST['start_hour']; $endHour = (int)$_POST['end_hour'];
+        $label = trim($_POST['label'] ?? '');
+        $st = $pdo->prepare("SELECT COUNT(*) c FROM rooms WHERE id=? AND org_id=?"); $st->execute([$roomId, $orgId]);
+        if (!(int)$st->fetch()['c']) { $msg = 'Sala no encontrada.'; }
+        elseif ($weekday < 1 || $weekday > 7) { $msg = 'Día de la semana inválido.'; }
+        elseif ($startHour >= $endHour) { $msg = 'La hora de inicio debe ser menor que la de fin.'; }
+        else {
+            $pdo->prepare("INSERT INTO room_blackouts (org_id, room_id, weekday, bdate, start_hour, end_hour, label, created_at)
+                           VALUES (?,?,?,NULL,?,?,?,?)")
+                ->execute([$orgId, $roomId, $weekday, $startHour, $endHour, $label ?: null, date('Y-m-d H:i:s')]);
+            $ok = true; $msg = 'Restricción semanal creada.';
+        }
+
+    } elseif ($a === 'restriccion_crear_fecha') {
+        $roomId = (int)$_POST['room_id'];
+        $bdate = trim($_POST['bdate'] ?? '');
+        $startHour = (int)$_POST['start_hour']; $endHour = (int)$_POST['end_hour'];
+        $label = trim($_POST['label'] ?? '');
+        $st = $pdo->prepare("SELECT COUNT(*) c FROM rooms WHERE id=? AND org_id=?"); $st->execute([$roomId, $orgId]);
+        if (!(int)$st->fetch()['c']) { $msg = 'Sala no encontrada.'; }
+        elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $bdate)) { $msg = 'Fecha inválida.'; }
+        elseif ($startHour >= $endHour) { $msg = 'La hora de inicio debe ser menor que la de fin.'; }
+        else {
+            $pdo->prepare("INSERT INTO room_blackouts (org_id, room_id, weekday, bdate, start_hour, end_hour, label, created_at)
+                           VALUES (?,?,NULL,?,?,?,?,?)")
+                ->execute([$orgId, $roomId, $bdate, $startHour, $endHour, $label ?: null, date('Y-m-d H:i:s')]);
+            $ok = true; $msg = 'Restricción de fecha creada.';
+        }
+
+    } elseif ($a === 'restriccion_eliminar') {
+        $pdo->prepare("DELETE FROM room_blackouts WHERE id=? AND org_id=?")->execute([(int)$_POST['id'], $orgId]);
+        $ok = true; $msg = 'Restricción eliminada.';
     }
 
     flash_set($ok, $msg);
@@ -158,7 +196,7 @@ function importar_csv(PDO $pdo, int $orgId): array {
 
 /* ============ VISTA ============ */
 page_top('Panel de administración', $u, 'admin');
-$tabs = ['reservas' => 'Reservas', 'estudiantes' => 'Estudiantes', 'salas' => 'Salas', 'reportes' => 'Reportes', 'config' => 'Configuración', 'correos' => 'Correos'];
+$tabs = ['reservas' => 'Reservas', 'estudiantes' => 'Estudiantes', 'salas' => 'Salas', 'restricciones' => 'Restricciones', 'reportes' => 'Reportes', 'config' => 'Configuración', 'correos' => 'Correos'];
 ?>
 <h1>Panel de administración</h1>
 <p class="sub"><?= e($org['name']) ?></p>
@@ -368,6 +406,84 @@ elseif ($tab === 'salas'):
 </div>
 <p class="mini">Bloquear una sala impide nuevas reservas mientras esté bloqueada. Las reservas ya existentes no se cancelan automáticamente: cancélelas desde la pestaña Reservas si es necesario.</p>
 
+<?php /* ================= RESTRICCIONES ================= */
+elseif ($tab === 'restricciones'):
+    $rooms = $pdo->prepare("SELECT * FROM rooms WHERE org_id=? ORDER BY name"); $rooms->execute([$orgId]); $rooms = $rooms->fetchAll();
+    $nombresDias = [1=>'Lunes',2=>'Martes',3=>'Miércoles',4=>'Jueves',5=>'Viernes',6=>'Sábado',7=>'Domingo'];
+    $st = $pdo->prepare("SELECT b.*, rm.name AS room_name FROM room_blackouts b
+                         JOIN rooms rm ON rm.id = b.room_id WHERE b.org_id=? ORDER BY rm.name, b.weekday, b.bdate");
+    $st->execute([$orgId]); $blackouts = $st->fetchAll();
+?>
+<div class="card tabla-scroll">
+<table class="tabla">
+  <tr><th>Sala</th><th>Tipo</th><th>Día / fecha</th><th>Horario</th><th>Nota</th><th></th></tr>
+  <?php foreach ($blackouts as $b): ?>
+  <tr>
+    <td><?= e($b['room_name']) ?></td>
+    <td><?= $b['bdate'] ? 'Fecha puntual' : 'Semanal' ?></td>
+    <td><?= $b['bdate'] ? e(date('d/m/Y', strtotime($b['bdate']))) : e($nombresDias[(int)$b['weekday']] ?? '?') ?></td>
+    <td><?= (int)$b['start_hour'] ?>:00–<?= (int)$b['end_hour'] ?>:00</td>
+    <td class="mini"><?= e($b['label']) ?></td>
+    <td>
+      <form class="inline" method="post" onsubmit="return confirm('¿Eliminar esta restricción?')">
+        <?= csrf_field() ?><input type="hidden" name="a" value="restriccion_eliminar"><input type="hidden" name="id" value="<?= (int)$b['id'] ?>">
+        <button class="btn gris chico">Eliminar</button>
+      </form>
+    </td>
+  </tr>
+  <?php endforeach; ?>
+  <?php if (!$blackouts): ?><tr><td colspan="6" class="mini">Sin restricciones configuradas.</td></tr><?php endif; ?>
+</table>
+</div>
+
+<div class="dos-col" style="margin-top:14px">
+  <div class="card">
+    <h2 style="margin-top:0">Restricción semanal recurrente</h2>
+    <form method="post">
+      <?= csrf_field() ?><input type="hidden" name="a" value="restriccion_crear_semanal">
+      <label>Sala</label>
+      <select name="room_id" required>
+        <?php foreach ($rooms as $r): ?><option value="<?= (int)$r['id'] ?>"><?= e($r['name']) ?></option><?php endforeach; ?>
+      </select>
+      <label>Día de la semana</label>
+      <select name="weekday" required>
+        <?php foreach ($nombresDias as $n => $d): ?><option value="<?= $n ?>"><?= e($d) ?></option><?php endforeach; ?>
+      </select>
+      <div class="dos-col">
+        <div><label>Hora de inicio</label>
+          <select name="start_hour"><?php for ($h = 0; $h <= 23; $h++): ?><option value="<?= $h ?>"><?= $h ?>:00</option><?php endfor; ?></select></div>
+        <div><label>Hora de fin</label>
+          <select name="end_hour"><?php for ($h = 1; $h <= 24; $h++): ?><option value="<?= $h ?>" <?= $h == 23 ? 'selected' : '' ?>><?= $h ?>:00</option><?php endfor; ?></select></div>
+      </div>
+      <label>Nota (opcional)</label>
+      <input name="label" placeholder="Ej: limpieza semanal" maxlength="150">
+      <br><button class="btn chico">Crear restricción</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2 style="margin-top:0">Restricción de fecha puntual</h2>
+    <form method="post">
+      <?= csrf_field() ?><input type="hidden" name="a" value="restriccion_crear_fecha">
+      <label>Sala</label>
+      <select name="room_id" required>
+        <?php foreach ($rooms as $r): ?><option value="<?= (int)$r['id'] ?>"><?= e($r['name']) ?></option><?php endforeach; ?>
+      </select>
+      <label>Fecha</label>
+      <input type="date" name="bdate" required>
+      <div class="dos-col">
+        <div><label>Hora de inicio</label>
+          <select name="start_hour"><?php for ($h = 0; $h <= 23; $h++): ?><option value="<?= $h ?>"><?= $h ?>:00</option><?php endfor; ?></select></div>
+        <div><label>Hora de fin</label>
+          <select name="end_hour"><?php for ($h = 1; $h <= 24; $h++): ?><option value="<?= $h ?>" <?= $h == 23 ? 'selected' : '' ?>><?= $h ?>:00</option><?php endfor; ?></select></div>
+      </div>
+      <label>Nota (opcional)</label>
+      <input name="label" placeholder="Ej: evento especial" maxlength="150">
+      <br><button class="btn chico">Crear restricción</button>
+    </form>
+  </div>
+</div>
+<p class="mini">Una sala restringida en un día/horario específico se muestra como "Restringido" en la rejilla del estudiante para ese día y hora, sin afectar el resto de la sala ni de la semana.</p>
+
 <?php /* ================= REPORTES ================= */
 elseif ($tab === 'reportes'):
     $desde = $_GET['desde'] ?? date('Y-m-d', strtotime('-29 days'));
@@ -484,6 +600,15 @@ elseif ($tab === 'config'):
         <input type="number" name="noshow_limit" min="1" max="10" value="<?= (int)$org['noshow_limit'] ?>"></div>
       <div><label>Días de bloqueo</label>
         <input type="number" name="noshow_block_days" min="1" max="30" value="<?= (int)$org['noshow_block_days'] ?>"></div>
+      <div><label>Hora de apertura de reservas</label>
+        <select name="booking_release_hour"><?php for ($h = 0; $h <= 23; $h++): ?><option value="<?= $h ?>" <?= $h == $org['booking_release_hour'] ? 'selected' : '' ?>><?= $h ?>:00</option><?php endfor; ?></select>
+        <p class="mini" style="margin:4px 0 0">Hora en que se habilitan los cupos del día (puede ser distinta al horario de apertura de la sala).</p></div>
+      <div><label>Política de reservas</label>
+        <select name="booking_horizon">
+          <option value="mismo_dia" <?= ($org['booking_horizon'] ?? 'mismo_dia') === 'mismo_dia' ? 'selected' : '' ?>>Solo el mismo día</option>
+          <option value="dia_siguiente" <?= ($org['booking_horizon'] ?? '') === 'dia_siguiente' ? 'selected' : '' ?>>Hasta el día siguiente</option>
+          <option value="semana" <?= ($org['booking_horizon'] ?? '') === 'semana' ? 'selected' : '' ?>>Toda la semana operativa</option>
+        </select></div>
     </div>
     <label style="margin-top:12px">Días de operación</label>
     <div style="display:flex; gap:10px; flex-wrap:wrap">

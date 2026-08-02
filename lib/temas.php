@@ -55,7 +55,7 @@ function tema_txt(string $tema, string $clave, string $neutro): string {
             'salas_h2'    => 'Salas de hoy',
             'salas_ayuda' => 'Tocá un bloque <b>libre</b> y encendelo. Solo se reserva para hoy.',
             'perfil_ok'   => 'Perfil actualizado. Ya podés desfilar tranquilo.',
-            'confirmar'   => 'Encender %s, hoy a las %d:00',
+            'confirmar'   => 'Encender %s, %s a las %d:00',
         ],
         'halloween' => [
             'login_sub'   => 'Reservá tu guarida antes de que alguien más la conjure.',
@@ -65,7 +65,7 @@ function tema_txt(string $tema, string $clave, string $neutro): string {
             'salas_h2'    => 'Guaridas de hoy',
             'salas_ayuda' => 'Tocá un bloque <b>libre</b> para apoderarte de él. Solo se reserva para hoy.',
             'perfil_ok'   => 'Perfil actualizado. Ningún fantasma tocó tus datos.',
-            'confirmar'   => 'Apoderarte de %s, hoy a las %d:00',
+            'confirmar'   => 'Apoderarte de %s, %s a las %d:00',
             'blk_ocupado' => 'Ocupada ⏳',
         ],
         'navidad' => [
@@ -76,7 +76,7 @@ function tema_txt(string $tema, string $clave, string $neutro): string {
             'salas_h2'    => 'Salas de hoy',
             'salas_ayuda' => 'Tocá un bloque <b>libre</b> y colgalo en tu árbol. Solo se reserva para hoy.',
             'perfil_ok'   => 'Perfil actualizado. Quedaste en la lista de los buenos.',
-            'confirmar'   => 'Reservar %s, hoy a las %d:00',
+            'confirmar'   => 'Reservar %s, %s a las %d:00',
         ],
     ];
     return $txt[$tema][$clave] ?? $neutro;
