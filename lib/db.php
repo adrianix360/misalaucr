@@ -142,7 +142,8 @@ function db_init(PDO $pdo, string $driver): void {
 
     // Migraciones suaves: columnas nuevas sobre bases ya existentes
     foreach (["ALTER TABLE organizations ADD COLUMN frozen_reason VARCHAR(255) NULL",
-              "ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL"] as $sql) {
+              "ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL",
+              "ALTER TABLE organizations ADD COLUMN theme VARCHAR(20) NOT NULL DEFAULT 'none'"] as $sql) {
         try { $pdo->exec($sql); } catch (PDOException $e) { /* la columna ya existe */ }
     }
 

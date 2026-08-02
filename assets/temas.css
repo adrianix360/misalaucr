@@ -1,0 +1,327 @@
+/* ==========================================================================
+   MiSalaUCR — Temas de temporada
+   Se carga DESPUÉS de assets/style.css y solo redefine variables y unos pocos
+   bloques. No cambia la estructura HTML existente ni los nombres de clase.
+
+   Activación: <body class="tema-independencia | tema-halloween | tema-navidad">
+   (lo imprime page_top() según organizations.theme — ver lib/temas.php)
+   ========================================================================== */
+
+/* ============================ 1. INDEPENDENCIA ============================
+   15 de setiembre · faroles + colores patrios                                */
+body.tema-independencia {
+  --navy: #0b1c46; --navy-2: #0a1735; --ink: #0b1c46;
+  --teal: #ffb43f; --teal-ink: #0f3d99; --teal-soft: #fff2d9;
+  --paper: #fdf7e9;
+  --azul: #0f3d99; --azul-osc: #0b2e78;
+  --celeste: #e4ecff; --verde: #0f7d52; --verde-cl: #dcf1e6;
+  --rojo: #ce1126; --rojo-cl: #fbe3e5;
+  --gris: #6d6552; --gris-cl: #f0e9d8; --borde: #ecdfc2; --tinta: #0b1c46;
+  --fondo: #fdf7e9;
+  --f-display: "Bitter", Georgia, serif;
+  --glow-teal: 0 0 0 3px rgba(255, 180, 63, .32);
+}
+body.tema-independencia .topbar { background: #0b1c46; border-bottom-color: #0b1c46; }
+body.tema-independencia .topbar nav a { color: #e7ecfa; }
+body.tema-independencia .topbar nav a.on { background: #ffb43f; color: #0b1c46; font-weight: 700; }
+body.tema-independencia .topbar nav a:hover { background: rgba(255, 210, 122, .16); color: #ffd27a; }
+body.tema-independencia .topbar nav a.salir { color: #ff9aa4; }
+body.tema-independencia .msu-logo { --msu-fg: #fdfaf3; --msu-word: #fdfaf3; --msu-sub: #ffd27a; --msu-accent: #ffb43f; }
+body.tema-independencia .msu-mark > i:first-child { box-shadow: 0 0 12px 2px rgba(255, 180, 63, .55); }
+body.tema-independencia .msu-mark > i:last-child { border-color: #ce1126; }
+/* franja tricolor bajo la barra (reemplaza el brillo turquesa) */
+body.tema-independencia .topbar::after {
+  height: 3px; bottom: -3px; opacity: 1; animation: none;
+  background: linear-gradient(90deg, #0f3d99 0 22%, #fdfaf3 22% 38%, #ce1126 38% 62%, #fdfaf3 62% 78%, #0f3d99 78% 100%);
+}
+body.tema-independencia h1, body.tema-independencia h2 { font-family: "Bitter", Georgia, serif; letter-spacing: -.02em; }
+body.tema-independencia .btn { background: linear-gradient(180deg, #14479f, #0b2e78); font-family: "Bitter", Georgia, serif; }
+body.tema-independencia .btn:hover { background: linear-gradient(180deg, #d8253a, #b30f21); }
+body.tema-independencia .btn.gris { background: #fff; color: #0b1c46; }
+body.tema-independencia .saldo { background: linear-gradient(120deg, #fff, #fff2d9); border-color: #f0d49a; }
+body.tema-independencia .saldo::before { background: linear-gradient(180deg, #0f3d99 0 34%, #fdfaf3 34% 50%, #ce1126 50% 100%); width: 6px; }
+body.tema-independencia .blk.mio {
+  background: linear-gradient(180deg, #ffd98a, #ffab3f); color: #5a2a06;
+  border-color: rgba(206, 17, 38, .85); box-shadow: 0 0 18px 3px rgba(255, 171, 63, .45);
+}
+body.tema-independencia .blk.libre { color: #0f3d99; border-color: #b9c7e6; }
+body.tema-independencia .login-box .card::before {
+  height: 5px; width: 96px;
+  background: linear-gradient(90deg, #0f3d99 0 34%, #fdfaf3 34% 50%, #ce1126 50% 100%);
+}
+body.tema-independencia .login-box .card { box-shadow: var(--sh-lg), 0 0 0 6px rgba(255, 180, 63, .10); }
+
+/* cielo nocturno solo en las pantallas centradas (login / contraseña) */
+body.tema-independencia.pantalla-ingreso {
+  background-color: #081536;
+  background-image:
+    radial-gradient(1000px 460px at 50% -12%, rgba(45, 88, 190, .55), transparent 62%),
+    linear-gradient(180deg, #081536, #0d2350 55%, #122b5e);
+  color: #e7ecfa;
+}
+body.tema-independencia.pantalla-ingreso .sub  { color: #c7d2ee; }
+body.tema-independencia.pantalla-ingreso .mini { color: #a9b8dd; }
+body.tema-independencia.pantalla-ingreso .foot { color: #8fa2cf; border-top-color: rgba(255, 210, 122, .16); }
+body.tema-independencia.pantalla-ingreso .msu-logo--xl { --msu-word: #fdfaf3; --msu-sub: #ffd27a; --msu-fg: #fdfaf3; }
+
+/* ------- decoración: desfile de faroles (div.deco-faroles > i) ------------ */
+.deco-faroles { display: flex; justify-content: space-between; padding: 0 40px; pointer-events: none; }
+.deco-faroles i {
+  display: block; width: 42px; height: 50px; border-radius: 9px;
+  border: 2px solid rgba(206, 17, 38, .9);
+  background: linear-gradient(180deg, #ffe3a8, #ff9f2e);
+  box-shadow: 0 0 34px 8px rgba(255, 171, 63, .35), inset 0 -6px 14px rgba(206, 17, 38, .22);
+  animation: msu-farol 3.6s ease-in-out infinite;
+}
+.deco-faroles i:nth-child(odd)   { margin-top: 26px; transform: scale(.92); animation-delay: .4s; }
+.deco-faroles i:nth-child(3n)    { margin-top: 44px; animation-delay: .9s; }
+@keyframes msu-farol { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.14); } }
+
+/* ------- decoración: banderines tricolor (div.deco-banderines) ----------- */
+.deco-banderines { display: flex; justify-content: center; padding-top: 14px; pointer-events: none; }
+.deco-banderines i {
+  display: block; width: 26px; height: 30px; opacity: .85;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.deco-banderines i:nth-child(3n+1) { background: #0f3d99; }
+.deco-banderines i:nth-child(3n+2) { background: #fdfaf3; }
+.deco-banderines i:nth-child(3n)   { background: #ce1126; }
+
+/* ================================ 2. HALLOWEEN ============================
+   31 de octubre · noche de calabazas (único tema oscuro)                     */
+body.tema-halloween {
+  --navy: #ff8a2a; --navy-2: #ff7a1a; --ink: #f6f1e6;
+  --teal: #ff7a1a; --teal-ink: #ff9d4d; --teal-soft: rgba(255, 122, 26, .16);
+  --paper: #1c1529;
+  --azul: #ff7a1a; --azul-osc: #d1550c;
+  --celeste: rgba(255, 122, 26, .18); --verde: #7ee081; --verde-cl: rgba(126, 224, 129, .12);
+  --rojo: #ff8d8d; --rojo-cl: rgba(184, 35, 42, .22);
+  --gris: #a99ac6; --gris-cl: #2c2140; --borde: #3a2b52; --tinta: #f6f1e6;
+  --fondo: #1c1529;
+  --f-display: "Space Grotesk", Helvetica, Arial, sans-serif;
+  --glow-teal: 0 0 0 3px rgba(255, 122, 26, .30);
+}
+body.tema-halloween {
+  background-color: #1c1529;
+  background-image:
+    radial-gradient(900px 400px at 86% -8%, rgba(255, 122, 26, .16), transparent 60%),
+    radial-gradient(800px 420px at -6% 6%, rgba(96, 49, 150, .30), transparent 58%);
+  color: #f6f1e6;
+}
+body.tema-halloween .topbar { background: #14101f; border-bottom-color: #14101f; }
+body.tema-halloween .topbar nav a { color: #e6dcf5; }
+body.tema-halloween .topbar nav a.on { background: #ff7a1a; color: #241407; font-weight: 700; }
+body.tema-halloween .topbar nav a:hover { background: rgba(255, 122, 26, .18); color: #ffb03a; }
+body.tema-halloween .topbar::after { bottom: -2px; background: linear-gradient(90deg, transparent, #ff7a1a 30%, #ffb03a 70%, transparent); }
+body.tema-halloween .msu-logo { --msu-fg: #f6f1e6; --msu-word: #f6f1e6; --msu-sub: #ff9d4d; --msu-accent: #ff7a1a; }
+body.tema-halloween .msu-mark > i:first-child { box-shadow: 0 0 13px 2px rgba(255, 122, 26, .65); }
+/* borde de goteo bajo la barra */
+body.tema-halloween .topbar { --gota: #14101f; }
+body.tema-halloween .topbar::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -9px; height: 9px; z-index: 1;
+  background: radial-gradient(9px 9px at 9px 0, var(--gota) 96%, transparent 100%) 0 0/26px 9px repeat-x;
+}
+body.tema-halloween h1, body.tema-halloween h2 { font-family: "Creepster", "Space Grotesk", cursive; letter-spacing: .02em; font-weight: 400; }
+body.tema-halloween h1 { font-size: 2.5rem; color: #ff8a2a; text-shadow: 0 0 22px rgba(255, 122, 26, .35); }
+body.tema-halloween h2 { font-size: 1.62rem; color: #ff8a2a; }
+body.tema-halloween .card { background: #241a36; border-color: #3a2b52; }
+body.tema-halloween .btn { background: linear-gradient(180deg, #ffa23a, #ff7a1a); color: #241407; }
+body.tema-halloween .btn:hover { background: linear-gradient(180deg, #8ee889, #57c463); color: #0e2e12; }
+body.tema-halloween .btn.gris { background: transparent; color: #e6dcf5; border-color: #453360; }
+body.tema-halloween input, body.tema-halloween select, body.tema-halloween textarea { background: #1a1327; color: #f6f1e6; border-color: #453360; }
+body.tema-halloween input::placeholder { color: #7d6f99; }
+body.tema-halloween .saldo { background: linear-gradient(120deg, #241a36, #33204d); border-color: rgba(255, 122, 26, .32); }
+body.tema-halloween .saldo::before { background: linear-gradient(180deg, #ffb03a, #ff7a1a); width: 6px; }
+body.tema-halloween .saldo b { color: #ffb03a; font-family: "Creepster", cursive; }
+body.tema-halloween .blk { background: transparent; }
+body.tema-halloween .blk.libre { background: transparent; color: #f6f1e6; border-color: #5a4480; }
+body.tema-halloween .blk.mio { background: linear-gradient(180deg, #ffb03a, #ff7a1a); color: #3d1d02; box-shadow: 0 0 20px 3px rgba(255, 122, 26, .45); }
+body.tema-halloween .blk.ocupado { background: #2c2140; color: #8d80a8; border-color: #3a2b52; }
+body.tema-halloween .blk.pasado { color: #5c5075; border-color: #3a2b52; }
+body.tema-halloween .res, body.tema-halloween .kpi, body.tema-halloween .tabs a { background: #241a36; border-color: #3a2b52; color: #f6f1e6; }
+body.tema-halloween .tabla tbody tr:hover { background: #2c2140; }
+body.tema-halloween .alert.good { background: rgba(126, 224, 129, .12); color: #a5eaa7; border-color: rgba(126, 224, 129, .35); }
+body.tema-halloween .foot { color: #8c7ba8; border-top-color: #3a2b52; }
+body.tema-halloween.pantalla-ingreso {
+  background-color: #14101f;
+  background-image:
+    radial-gradient(700px 340px at 50% -6%, rgba(255, 176, 58, .20), transparent 62%),
+    radial-gradient(900px 480px at 88% 8%, rgba(96, 49, 150, .35), transparent 60%),
+    linear-gradient(180deg, #14101f, #1e1430 55%, #2a1b45);
+}
+body.tema-halloween .login-box .brand-big b,
+body.tema-halloween .login-box .msu-word b { font-family: "Creepster", cursive; color: #ff8a2a; letter-spacing: .03em; }
+
+/* ------- decoración: calabazas colgantes (div.deco-calabazas > i) --------- */
+.deco-calabazas { display: flex; justify-content: space-between; padding: 0 44px; pointer-events: none; }
+.deco-calabazas i {
+  display: block; width: 40px; height: 32px; border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #ffb03a, #ff7a1a 55%, #d1550c);
+  box-shadow: 0 0 30px 8px rgba(255, 122, 26, .30), inset -6px -8px 14px rgba(140, 50, 4, .4);
+  animation: msu-flotar 7s ease-in-out infinite;
+}
+.deco-calabazas i:nth-child(odd) { margin-top: 22px; transform: scale(.88); animation-delay: .8s; }
+.deco-calabazas i:nth-child(3n)  { margin-top: 40px; animation-delay: 1.6s; }
+@keyframes msu-flotar { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(9px) rotate(2deg); } }
+
+/* ================================ 3. NAVIDAD ==============================
+   diciembre · Santa, trineo y luna llena                                     */
+body.tema-navidad {
+  --navy: #0e3b2e; --navy-2: #0b2b22; --ink: #0b2b22;
+  --teal: #b3252b; --teal-ink: #0f5140; --teal-soft: #fdefd4;
+  --paper: #fdf8ee;
+  --azul: #b3252b; --azul-osc: #a51f25;
+  --celeste: #fdefd4; --verde: #0f5140; --verde-cl: #e2f0e9;
+  --rojo: #b3252b; --rojo-cl: #fbe4e4;
+  --gris: #6b6553; --gris-cl: #f2eee3; --borde: #ecdfc4; --tinta: #0b2b22;
+  --fondo: #fdf8ee;
+  --f-display: "Mountains of Christmas", Georgia, cursive;
+  --glow-teal: 0 0 0 3px rgba(232, 185, 90, .32);
+}
+body.tema-navidad {
+  background-image:
+    radial-gradient(900px 400px at 86% -8%, rgba(232, 185, 90, .22), transparent 60%),
+    radial-gradient(800px 420px at -6% 6%, rgba(15, 81, 64, .10), transparent 58%);
+}
+body.tema-navidad .topbar { background: #0e3b2e; border-bottom-color: #0e3b2e; }
+body.tema-navidad .topbar nav a { color: #e3f0ea; }
+body.tema-navidad .topbar nav a.on { background: #b3252b; color: #fff4e8; font-weight: 700; }
+body.tema-navidad .topbar nav a:hover { background: rgba(232, 185, 90, .18); color: #e8b95a; }
+body.tema-navidad .topbar nav a.salir { color: #ff9a9e; }
+body.tema-navidad .msu-logo { --msu-fg: #fdf6e9; --msu-word: #fdf6e9; --msu-sub: #e8b95a; --msu-accent: #e8b95a; position: relative; }
+body.tema-navidad .msu-mark > i:first-child { box-shadow: 0 0 13px 2px rgba(232, 185, 90, .6); }
+body.tema-navidad .msu-mark > i:last-child { border-color: #d9424a; }
+/* gorro de Santa sobre el isotipo */
+body.tema-navidad .msu-logo::before {
+  content: ""; position: absolute; left: -6px; top: -13px; width: 0; height: 0;
+  border-left: 11px solid transparent; border-right: 11px solid transparent;
+  border-bottom: 16px solid #cf3239; transform: rotate(-18deg);
+}
+body.tema-navidad .msu-logo::after {
+  content: ""; position: absolute; left: -12px; top: -1px;
+  width: 9px; height: 9px; border-radius: 50%; background: #fdf6e9;
+}
+/* banda de bastón de caramelo bajo la barra */
+body.tema-navidad .topbar::after {
+  height: 3px; bottom: -3px; opacity: 1; animation: none;
+  background: repeating-linear-gradient(135deg, #b3252b 0 14px, #fdf6e9 14px 28px);
+}
+body.tema-navidad h1, body.tema-navidad h2 { font-family: "Mountains of Christmas", Georgia, cursive; font-weight: 700; letter-spacing: 0; }
+body.tema-navidad h1 { font-size: 3.2rem; line-height: 1; color: #b3252b; }
+body.tema-navidad h2 { font-size: 2.1rem; color: #b3252b; }
+body.tema-navidad .btn { background: linear-gradient(180deg, #cf3239, #a51f25); color: #fff4e8; }
+body.tema-navidad .btn:hover { background: linear-gradient(180deg, #14664f, #0d3f31); }
+body.tema-navidad .btn.gris { background: #fff; color: #0e3b2e; }
+body.tema-navidad .saldo { background: linear-gradient(120deg, #fff, #fdefd4); border-color: #ecd8a6; }
+body.tema-navidad .saldo::before { background: linear-gradient(180deg, #0f5140 0 40%, #e8b95a 40% 60%, #b3252b 60% 100%); width: 6px; }
+body.tema-navidad .saldo b { font-family: "Mountains of Christmas", cursive; color: #a51f25; font-size: 2.9rem; }
+body.tema-navidad .blk.mio { background: linear-gradient(180deg, #d9424a, #b3252b); color: #fff4e8; border-color: transparent; }
+body.tema-navidad .blk.libre { color: #0f5140; border-color: #bcd3c9; }
+body.tema-navidad .grid-salas .hd { font-family: "Playfair Display", Georgia, serif; }
+body.tema-navidad .login-box .card::before {
+  height: 10px; width: auto; margin: -6px -6px 20px; border-radius: 6px;
+  background: repeating-linear-gradient(135deg, #b3252b 0 16px, #fdf6e9 16px 32px);
+}
+body.tema-navidad.pantalla-ingreso {
+  background-color: #07211a;
+  background-image:
+    radial-gradient(900px 460px at 50% -12%, rgba(232, 185, 90, .18), transparent 60%),
+    linear-gradient(180deg, #07211a, #0d3529 58%, #123f31);
+  color: #e3f0ea;
+}
+body.tema-navidad.pantalla-ingreso .sub  { color: #cfe6da; }
+body.tema-navidad.pantalla-ingreso .mini { color: #9dbcb1; }
+body.tema-navidad.pantalla-ingreso .foot { color: #8a8168; background: #fdf6e9; border-top: 0; }
+body.tema-navidad.pantalla-ingreso .login-box .msu-word b,
+body.tema-navidad.pantalla-ingreso .brand-big b { color: #fdf6e9; font-size: 4.4rem; }
+
+/* ------- decoración navideña -------------------------------------------- */
+/* luna llena detrás del logo (div.deco-luna) */
+.deco-luna {
+  position: absolute; top: 120px; left: 50%; width: 380px; height: 380px; margin-left: -190px;
+  border-radius: 50%; pointer-events: none; z-index: 0;
+  background: radial-gradient(circle at 40% 36%, #fff6df, #f0dfae 62%, #e0c789);
+  box-shadow: 0 0 120px 30px rgba(240, 223, 174, .28);
+}
+/* Santa + trineo (img.deco-trineo) — assets/brand/navidad/trineo.png */
+.deco-trineo {
+  display: block; position: relative; z-index: 2; margin: 6px auto 0;
+  width: min(860px, 92%); max-height: 250px; object-fit: contain;
+  animation: msu-trineo 7s ease-in-out infinite;
+}
+@keyframes msu-trineo { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-14px) rotate(1deg); } }
+/* cinta roja del saludo (div.deco-banner) en student.php */
+.deco-banner {
+  position: relative; overflow: hidden; border-radius: 22px; padding: 26px 30px;
+  display: flex; align-items: center; gap: 22px; margin-bottom: 20px;
+  background: linear-gradient(110deg, #a51f25, #cf3239 58%, #d9585d);
+  box-shadow: 0 22px 46px -22px rgba(120, 20, 26, .75);
+}
+.deco-banner::before {
+  content: ""; position: absolute; inset: 0; opacity: .18; pointer-events: none;
+  background: repeating-linear-gradient(135deg, #fff 0 22px, transparent 22px 44px);
+}
+.deco-banner h1 { color: #fff4e8 !important; margin: 0 0 6px; }
+.deco-banner .sub { color: #ffe3d6; margin: 0; }
+.deco-banner img { width: 330px; max-height: 190px; object-fit: contain; flex: none; }
+@media (max-width: 720px) {
+  .deco-banner { flex-direction: column; align-items: stretch; padding: 18px; }
+  .deco-banner img { width: 100%; max-height: 130px; }
+}
+/* guirnalda de bombillos (div.deco-guirnalda > i) */
+.deco-guirnalda { display: flex; justify-content: space-between; padding: 0 26px; pointer-events: none; }
+.deco-guirnalda i {
+  display: block; width: 14px; height: 20px; border-radius: 0 0 60% 60% / 0 0 70% 70%;
+  animation: msu-bombillo 3s ease-in-out infinite;
+}
+.deco-guirnalda i:nth-child(4n+1) { background: linear-gradient(180deg, #f7dc9a, #e8b95a); box-shadow: 0 0 22px 5px rgba(232, 185, 90, .45); }
+.deco-guirnalda i:nth-child(4n+2) { background: linear-gradient(180deg, #ef6a70, #c62f36); box-shadow: 0 0 22px 5px rgba(214, 60, 67, .40); margin-top: 12px; }
+.deco-guirnalda i:nth-child(4n+3) { background: linear-gradient(180deg, #63c9a4, #199a72); box-shadow: 0 0 22px 5px rgba(38, 168, 124, .38); margin-top: 24px; }
+.deco-guirnalda i:nth-child(4n)   { background: linear-gradient(180deg, #fdf6e9, #e6dcc3); box-shadow: 0 0 22px 5px rgba(253, 246, 233, .35); margin-top: 12px; }
+.deco-guirnalda i:nth-child(odd)  { animation-delay: .5s; }
+@keyframes msu-bombillo { 0%, 100% { filter: brightness(1); opacity: .9; } 50% { filter: brightness(1.35); opacity: 1; } }
+/* nieve (div.deco-nieve > i) */
+.deco-nieve { position: absolute; inset: 0; display: flex; justify-content: space-around; align-items: flex-start; pointer-events: none; overflow: hidden; }
+.deco-nieve i { display: block; width: 4px; height: 4px; border-radius: 50%; background: #fdf6e9; opacity: .8; animation: msu-nieve 10s linear infinite; }
+.deco-nieve i:nth-child(3n)   { width: 3px; height: 3px; animation-duration: 13s; animation-delay: 2s; }
+.deco-nieve i:nth-child(4n+1) { width: 6px; height: 6px; animation-duration: 8s;  animation-delay: 4s; }
+@keyframes msu-nieve { 0% { transform: translateY(-14px); opacity: 0; } 15% { opacity: .95; } 100% { transform: translateY(300px); opacity: 0; } }
+/* colinas nevadas al pie del ingreso (div.deco-colinas) */
+.deco-colinas { position: relative; height: 120px; margin-top: -30px; }
+.deco-colinas::before, .deco-colinas::after {
+  content: ""; position: absolute; bottom: 0; border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+}
+.deco-colinas::before { left: -6%; width: 62%; height: 120px; background: #f4ecdc; }
+.deco-colinas::after  { right: -8%; width: 66%; height: 96px;  background: #fdf6e9; }
+
+/* ============================== responsive =============================== */
+@media (max-width: 720px) {
+  .deco-faroles   { padding: 0 8px; }
+  .deco-faroles i:nth-child(n+5),
+  .deco-calabazas i:nth-child(n+5),
+  .deco-banderines i:nth-child(n+13),
+  .deco-guirnalda i:nth-child(n+7),
+  .deco-nieve i:nth-child(n+11) { display: none; }
+  .deco-calabazas { padding: 0 8px; }
+  .deco-guirnalda { padding: 0 12px; }
+  .deco-luna { top: 150px; width: 220px; height: 220px; margin-left: -110px; }
+  .deco-trineo { max-height: 150px; }
+  .deco-colinas { height: 80px; margin-top: -14px; }
+  .deco-colinas::before { height: 80px; }
+  .deco-colinas::after  { height: 62px; }
+  body.tema-halloween h1 { font-size: 2.1rem; }
+  body.tema-navidad h1 { font-size: 2.4rem; }
+  body.tema-navidad h2 { font-size: 1.8rem; }
+}
+
+/* ====================== accesibilidad / preferencias ===================== */
+@media (prefers-reduced-motion: reduce) {
+  .deco-faroles i, .deco-calabazas i, .deco-guirnalda i, .deco-nieve i, .deco-trineo {
+    animation: none !important;
+  }
+  .deco-nieve { display: none; }
+}
+@media print {
+  .deco-faroles, .deco-banderines, .deco-calabazas, .deco-guirnalda,
+  .deco-nieve, .deco-luna, .deco-colinas, .deco-trineo { display: none !important; }
+}

@@ -61,6 +61,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ok = true; $msg = 'Nombre actualizado.';
         }
 
+    } elseif ($a === 'org_tema') {
+        $id = (int)$_POST['id'];
+        $tema = $_POST['theme'] ?? 'none';
+        if (!isset(TEMAS_DISPONIBLES[$tema])) $tema = 'none';
+        $pdo->prepare("UPDATE organizations SET theme=? WHERE id=?")->execute([$tema, $id]);
+        log_activity($id, 'organizacion', 'Tema de temporada cambiado a: ' . TEMAS_DISPONIBLES[$tema]);
+        $ok = true; $msg = 'Tema de temporada actualizado.';
+
     } elseif ($a === 'admin_editar') {
         $id = (int)$_POST['id'];
         $nombre = trim($_POST['nombre'] ?? ''); $email = trim($_POST['email'] ?? ''); $pass = trim($_POST['password'] ?? '');
@@ -160,6 +168,16 @@ if ($tab === 'orgs'):
     <?= csrf_field() ?><input type="hidden" name="a" value="org_renombrar"><input type="hidden" name="id" value="<?= (int)$o['id'] ?>">
     <div style="flex:1; min-width:220px"><label>Nombre</label><input name="nombre" value="<?= e($o['name']) ?>"></div>
     <button class="btn gris chico">Renombrar</button>
+  </form>
+  <form method="post" style="display:flex; gap:8px; margin-top:10px; align-items:end; flex-wrap:wrap">
+    <?= csrf_field() ?><input type="hidden" name="a" value="org_tema"><input type="hidden" name="id" value="<?= (int)$o['id'] ?>">
+    <div style="flex:1; min-width:220px"><label>Tema de temporada</label>
+      <select name="theme">
+        <?php foreach (TEMAS_DISPONIBLES as $k => $n): ?>
+          <option value="<?= e($k) ?>" <?= ($o['theme'] ?? 'none') === $k ? 'selected' : '' ?>><?= e($n) ?></option>
+        <?php endforeach; ?>
+      </select></div>
+    <button class="btn gris chico">Aplicar tema</button>
   </form>
 
   <h2>Administradores</h2>

@@ -6,6 +6,7 @@ require_once __DIR__ . '/lib/layout.php';
 $u = require_role(['student']);
 $org = org_of($u);
 if (!$org || !$org['active']) { logout(); header('Location: login.php'); exit; }
+$tema = tema_actual($org);
 process_automatic();
 
 /* --- acciones --- */
@@ -28,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ok = false; $msg = 'Teléfono inválido (use dígitos, espacios o guiones).';
         } else {
             db()->prepare("UPDATE users SET phone = ? WHERE id = ?")->execute([$tel ?: null, (int)$u['id']]);
-            $ok = true; $msg = 'Perfil actualizado.';
+            $ok = true; $msg = tema_txt($tema, 'perfil_ok', 'Perfil actualizado.');
         }
     } else { $ok = false; $msg = 'Acción desconocida.'; }
     flash_set($ok, $msg);
@@ -83,16 +84,30 @@ $st->execute([$u['id']]);
 $misFilas = $st->fetchAll();
 
 page_top('Reservar', $u, 'student');
+$primerNombre = explode(' ', trim($u['name']))[0];
+$saludo = sprintf(tema_txt($tema, 'saludo', 'Hola, %s 👋'), $primerNombre);
 ?>
-<h1>Hola, <?= e(explode(' ', trim($u['name']))[0]) ?> 👋</h1>
+<?php if (tema_usa_banner($tema)): ?>
+<div class="deco-banner">
+  <div style="flex:1">
+    <h1><?= e($saludo) ?></h1>
+    <p class="sub"><?= e($org['name']) ?> · <?= e(strftime_es($hoy)) ?></p>
+  </div>
+  <?php if (is_file(__DIR__ . '/assets/brand/navidad/santa.png')): ?>
+    <img src="assets/brand/navidad/santa.png" alt="" aria-hidden="true">
+  <?php endif; ?>
+</div>
+<?php else: ?>
+<h1><?= e($saludo) ?></h1>
 <p class="sub"><?= e($org['name']) ?> · <?= e(strftime_es($hoy)) ?></p>
+<?php endif; ?>
 <?php show_flash(); ?>
 
 <?php if ($bloqueo): ?><div class="alert bad"><?= e($bloqueo) ?></div><?php endif; ?>
 
 <div class="saldo">
   <b><?= $rest ?>h</b>
-  <div>te quedan disponibles esta semana <span class="mini">(máx. <?= (int)$org['max_hours_week'] ?>h por semana, <?= (int)$org['max_blocks_session'] ?>h por sesión)</span></div>
+  <div><?= e(tema_txt($tema, 'saldo', 'te quedan disponibles esta semana')) ?> <span class="mini">(máx. <?= (int)$org['max_hours_week'] ?>h por semana, <?= (int)$org['max_blocks_session'] ?>h por sesión)</span></div>
 </div>
 
 <?php
@@ -143,13 +158,13 @@ if ($activas): ?>
 </div>
 <?php endforeach; endif; ?>
 
-<h2>Salas de hoy</h2>
+<h2><?= e(tema_txt($tema, 'salas_h2', 'Salas de hoy')) ?></h2>
 <?php if (!$abierto): ?>
   <div class="card">Hoy las salas no están en operación. Horario: lunes a viernes, <?= (int)$org['open_hour'] ?>:00–<?= (int)$org['close_hour'] ?>:00. Las reservas del día se abren a las <?= (int)$org['open_hour'] ?>:00 a.m.</div>
 <?php elseif (($preApertura = $ahora < strtotime(dt($hoy, (int)$org['open_hour']))) && true): ?>
   <div class="card">Las reservas de hoy se abren a las <b><?= (int)$org['open_hour'] ?>:00 a.m.</b> A esa hora se habilitan todos los bloques del día, por orden de llegada.</div>
 <?php else: ?>
-<p class="sub">Toca un bloque <b style="color:#10613f">libre</b> para reservarlo. Solo se reserva para hoy.</p>
+<p class="sub"><?= tema_txt($tema, 'salas_ayuda', 'Toca un bloque <b style="color:#10613f">libre</b> para reservarlo. Solo se reserva para hoy.') ?></p>
 <div class="card">
   <div class="grid-salas">
     <div class="hd"></div>
@@ -171,7 +186,7 @@ if ($activas): ?>
                 echo '<a class="blk ocupado" style="text-decoration:none' . ($on ? ';outline:2px solid var(--azul)' : '') .
                      '" title="Unirse a la fila de espera" href="student.php?fila=' . $rid . ',' . $h . '#fila">Ocupado ⏳</a>';
             } else {
-                echo '<span class="blk ocupado">Ocupado</span>';
+                echo '<span class="blk ocupado">' . e(tema_txt($tema, 'blk_ocupado', 'Ocupado')) . '</span>';
             }
         } elseif ($vencido) {
             echo '<span class="blk pasado">—</span>';
@@ -195,7 +210,7 @@ if ($activas): ?>
               && empty($misBloquesHoy[$sel['room_id']][$h + 1]);
     if ($roomSel && $roomSel['status'] === 'disponible' && empty($occ[$sel['room_id']][$h])): ?>
 <div class="confirmar" id="confirmar">
-  <b>Reservar <?= e($roomSel['name']) ?>, hoy a las <?= $h ?>:00</b>
+  <b><?= e(sprintf(tema_txt($tema, 'confirmar', 'Reservar %s, hoy a las %d:00'), $roomSel['name'], $h)) ?></b>
   <form method="post" style="margin-top:8px">
     <?= csrf_field() ?>
     <input type="hidden" name="a" value="reservar">

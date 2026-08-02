@@ -18,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 page_top('Iniciar sesión');
+$tema = tema_global();
 ?>
 <div class="login-box">
   <div class="brand-big">
@@ -26,7 +27,7 @@ page_top('Iniciar sesión');
       <span class="msu-word"><b>MiSala</b><span>UCR</span></span>
     </span>
   </div>
-  <p class="sub" style="text-align:center">Reserva tu sala de estudio en segundos</p>
+  <p class="sub" style="text-align:center"><?= e(tema_txt($tema, 'login_sub', 'Reserva tu sala de estudio en segundos')) ?></p>
   <div class="card">
     <?php if ($error): ?><div class="alert bad"><?= e($error) ?></div><?php endif; ?>
     <form method="post">
@@ -36,7 +37,7 @@ page_top('Iniciar sesión');
       <label for="password">Contraseña</label>
       <input id="password" type="password" name="password" required autocomplete="current-password">
       <br><br>
-      <button class="btn full" type="submit">Entrar</button>
+      <button class="btn full" type="submit"><?= e(tema_txt($tema, 'login_btn', 'Entrar')) ?></button>
     </form>
   </div>
   <p class="mini" style="text-align:center">¿No tienes cuenta? Solicítala en la oficina de tu asociación.</p>
