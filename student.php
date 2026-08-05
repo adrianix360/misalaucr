@@ -103,6 +103,7 @@ $saludo = sprintf(tema_txt($tema, 'saludo', 'Hola, %s 👋'), $primerNombre);
   <?php endif; ?>
 </div>
 <?php else: ?>
+<?php tema_deco_saludo($tema); ?>
 <h1><?= e($saludo) ?></h1>
 <p class="sub"><?= e($org['name']) ?> · <?= e(strftime_es($hoy)) ?></p>
 <?php endif; ?>

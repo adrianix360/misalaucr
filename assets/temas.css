@@ -8,85 +8,235 @@
    ========================================================================== */
 
 /* ============================ 1. INDEPENDENCIA ============================
-   15 de setiembre · faroles + colores patrios                                */
+   MiSalaUCR — TEMA PATRIO DE SETIEMBRE  ("Cinco franjas")
+   Se conserva la clave de tema 'independencia' (organizations.theme) para no
+   tocar la base de datos. No cambia estructura HTML ni nombres de clase
+   existentes: solo redefine variables y unos pocos bloques.
+
+   Idea: la bandera de Costa Rica NO se dibuja como ilustración; se usa como
+   ESTRUCTURA. Siempre aparece como una banda de cinco franjas
+   (azul 20% / blanco 13% / rojo 34% / blanco 13% / azul 20%).
+   Única pieza que ondea: .deco-bandera (paño con mástil).                     */
 body.tema-independencia {
-  --navy: #0b1c46; --navy-2: #0a1735; --ink: #0b1c46;
-  --teal: #ffb43f; --teal-ink: #0f3d99; --teal-soft: #fff2d9;
-  --paper: #fdf7e9;
-  --azul: #0f3d99; --azul-osc: #0b2e78;
-  --celeste: #e4ecff; --verde: #0f7d52; --verde-cl: #dcf1e6;
-  --rojo: #ce1126; --rojo-cl: #fbe3e5;
-  --gris: #6d6552; --gris-cl: #f0e9d8; --borde: #ecdfc2; --tinta: #0b1c46;
-  --fondo: #fdf7e9;
-  --f-display: "Bitter", Georgia, serif;
-  --glow-teal: 0 0 0 3px rgba(255, 180, 63, .32);
+  /* --- marca --- */
+  --navy:      #10214a;
+  --navy-2:    #0a1733;
+  --ink:       #10214a;
+  --teal:      #0b3fa0;   /* el "acento" del sistema pasa a ser azul bandera */
+  --teal-ink:  #0b3fa0;
+  --teal-soft: #e8eefa;
+  --paper:     #f7f8fb;
+
+  /* --- alias usados en línea desde PHP (no renombrar) --- */
+  --azul:      #0b3fa0;
+  --azul-osc:  #082f78;
+  --celeste:   #e8eefa;
+  --verde:     #17795a;
+  --verde-cl:  #e7f2ea;
+  --rojo:      #d81e34;
+  --rojo-cl:   #fcecef;
+
+  /* --- neutros fríos --- */
+  --gris:      #6c7680;
+  --gris-cl:   #f0f2f6;
+  --borde:     #e4e8f0;
+  --tinta:     #10214a;
+  --fondo:     #f7f8fb;
+
+  /* --- radios casi rectos: es lo que le da el aire institucional --- */
+  --r-lg: 4px; --r-md: 3px; --r-sm: 3px; --r-pill: 999px;
+
+  /* --- sombras: neutras y mínimas, cero sombras de color --- */
+  --sh-sm: none;
+  --sh-md: 0 1px 2px rgba(16, 33, 74, .05);
+  --sh-lg: 0 20px 46px -26px rgba(16, 33, 74, .40);
+  --glow-teal: 0 0 0 3px rgba(11, 63, 160, .16);
+
+  /* --- tipografía: NO se agrega ninguna fuente nueva --- */
+  --f-display: "Space Grotesk", Helvetica, Arial, sans-serif;
+
+  /* --- la bandera, en sus dos orientaciones --- */
+  --bandera:   linear-gradient(180deg, #0b3fa0 0 20%, #fff 20% 33%, #d81e34 33% 67%, #fff 67% 80%, #0b3fa0 80% 100%);
+  --bandera-h: linear-gradient(90deg,  #0b3fa0 0 20%, #fff 20% 33%, #d81e34 33% 67%, #fff 67% 80%, #0b3fa0 80% 100%);
 }
-body.tema-independencia .topbar { background: #0b1c46; border-bottom-color: #0b1c46; }
-body.tema-independencia .topbar nav a { color: #e7ecfa; }
-body.tema-independencia .topbar nav a.on { background: #ffb43f; color: #0b1c46; font-weight: 700; }
-body.tema-independencia .topbar nav a:hover { background: rgba(255, 210, 122, .16); color: #ffd27a; }
-body.tema-independencia .topbar nav a.salir { color: #ff9aa4; }
-body.tema-independencia .msu-logo { --msu-fg: #fdfaf3; --msu-word: #fdfaf3; --msu-sub: #ffd27a; --msu-accent: #ffb43f; }
-body.tema-independencia .msu-mark > i:first-child { box-shadow: 0 0 12px 2px rgba(255, 180, 63, .55); }
-body.tema-independencia .msu-mark > i:last-child { border-color: #ce1126; }
-/* franja tricolor bajo la barra (reemplaza el brillo turquesa) */
+
+/* fondo plano: se quitan los dos radial-gradient de style.css */
+body.tema-independencia { background-image: none; }
+
+/* ---------- barra superior: blanca + banda bandera de 5 px ------------- */
+body.tema-independencia .topbar { background: #fff; border-bottom: 1px solid var(--borde); }
+body.tema-independencia .topbar nav a { color: var(--navy); }
+body.tema-independencia .topbar nav a:hover { background: #eef1f7; color: var(--azul); }
+body.tema-independencia .topbar nav a.on { background: var(--navy); color: #fff; font-weight: 600; }
+body.tema-independencia .topbar nav a.salir { color: var(--rojo); }
+body.tema-independencia .topbar nav a.salir:hover { background: var(--rojo-cl); }
 body.tema-independencia .topbar::after {
-  height: 3px; bottom: -3px; opacity: 1; animation: none;
-  background: linear-gradient(90deg, #0f3d99 0 22%, #fdfaf3 22% 38%, #ce1126 38% 62%, #fdfaf3 62% 78%, #0f3d99 78% 100%);
+  height: 5px; bottom: -5px; opacity: 1; animation: none;
+  background: var(--bandera); background-size: auto;
 }
-body.tema-independencia h1, body.tema-independencia h2 { font-family: "Bitter", Georgia, serif; letter-spacing: -.02em; }
-body.tema-independencia .btn { background: linear-gradient(180deg, #14479f, #0b2e78); font-family: "Bitter", Georgia, serif; }
-body.tema-independencia .btn:hover { background: linear-gradient(180deg, #d8253a, #b30f21); }
-body.tema-independencia .btn.gris { background: #fff; color: #0b1c46; }
-body.tema-independencia .saldo { background: linear-gradient(120deg, #fff, #fff2d9); border-color: #f0d49a; }
-body.tema-independencia .saldo::before { background: linear-gradient(180deg, #0f3d99 0 34%, #fdfaf3 34% 50%, #ce1126 50% 100%); width: 6px; }
+
+/* ---------- logo: cupo lleno en rojo, contornos en tinta -------------- */
+body.tema-independencia .msu-logo { --msu-fg: #10214a; --msu-word: #10214a; --msu-sub: #0b3fa0; --msu-accent: #d81e34; }
+body.tema-independencia .msu-mark > i:first-child { box-shadow: none; }
+body.tema-independencia .msu-mark > i:last-child { border-color: #0b3fa0; }
+
+/* ---------- títulos: viñeta = asta roja ------------------------------- */
+body.tema-independencia h1, body.tema-independencia h2 { font-family: var(--f-display); letter-spacing: -.03em; }
+body.tema-independencia h2::before {
+  width: 4px; height: 20px; border-radius: 0; box-shadow: none; background: var(--rojo);
+}
+
+/* ---------- botones: planos ------------------------------------------- */
+body.tema-independencia .btn {
+  background: var(--azul); box-shadow: none; border-radius: var(--r-md);
+}
+body.tema-independencia .btn:hover { background: var(--rojo); box-shadow: none; transform: none; }
+body.tema-independencia .btn.verde { background: var(--verde); color: #fff; }
+body.tema-independencia .btn.verde:hover { background: #106047; }
+body.tema-independencia .btn.gris { background: #fff; color: var(--navy); border-color: #dfe4ec; }
+body.tema-independencia .btn.gris:hover { background: var(--gris-cl); }
+
+/* ---------- saldo de horas: bandera vertical como filo --------------- */
+body.tema-independencia .saldo {
+  background: #fff; border-color: var(--borde); border-radius: var(--r-lg);
+  padding: 18px 22px 18px 34px;
+}
+body.tema-independencia .saldo::before { width: 12px; background: var(--bandera); }
+
+/* ---------- rejilla de salas ----------------------------------------- */
+body.tema-independencia .blk { border-width: 1px; border-radius: var(--r-sm); }
+body.tema-independencia .blk.libre { background: #fff; color: var(--azul); border-color: #c3cede; }
+body.tema-independencia a.blk.libre:hover, body.tema-independencia button.blk.libre:hover {
+  border-color: var(--azul); color: var(--azul); transform: none;
+  box-shadow: inset 0 -3px 0 var(--azul);
+}
+/* "Tuya": azul lleno + franja bandera de 4 px al pie */
 body.tema-independencia .blk.mio {
-  background: linear-gradient(180deg, #ffd98a, #ffab3f); color: #5a2a06;
-  border-color: rgba(206, 17, 38, .85); box-shadow: 0 0 18px 3px rgba(255, 171, 63, .45);
+  position: relative; overflow: hidden;
+  background: var(--azul); color: #fff; border-color: transparent; box-shadow: none;
 }
-body.tema-independencia .blk.libre { color: #0f3d99; border-color: #b9c7e6; }
-body.tema-independencia .blk.cerrado { background: #f0e9d8; color: #8a7a4a; border-color: #ecdfc2; }
+body.tema-independencia .blk.mio::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
+  background: var(--bandera-h);
+}
+body.tema-independencia .blk.ocupado { background: var(--gris-cl); color: #8b93a1; border-color: var(--borde); }
+body.tema-independencia a.blk.ocupado:hover { border-color: var(--navy); color: var(--navy); transform: none; box-shadow: none; }
+body.tema-independencia .blk.cerrado { background: var(--gris-cl); color: #8b93a1; border-color: var(--borde); }
+body.tema-independencia .blk.pasado { background: transparent; color: #b3bac6; border-color: #d7dce6; }
+/* el bloque seleccionado (outline en línea desde PHP) se ve así: */
+body.tema-independencia .blk.libre[style*="outline"] { box-shadow: inset 0 -3px 0 var(--rojo); }
+
+/* ---------- tarjetas, reservas, pestañas, KPIs ----------------------- */
+body.tema-independencia .card { border-radius: var(--r-lg); box-shadow: none; }
+body.tema-independencia .res { border-radius: var(--r-md); border-left-color: var(--azul); box-shadow: none; }
+body.tema-independencia .res:hover { transform: none; box-shadow: none; border-color: #d5dbe6; }
+body.tema-independencia .tabs a { border-radius: var(--r-pill); box-shadow: none; }
+body.tema-independencia .tabs a:hover { border-color: var(--azul); color: var(--azul); transform: none; }
+body.tema-independencia .tabs a.on { background: var(--navy); border-color: transparent; box-shadow: none; }
+body.tema-independencia .kpi { border-radius: var(--r-lg); box-shadow: none; }
+body.tema-independencia .kpi:hover { transform: none; box-shadow: none; }
+body.tema-independencia .kpi::before { height: 4px; background: var(--bandera-h); }
+body.tema-independencia .barra i { background: var(--azul); }
+body.tema-independencia .pill { border-radius: var(--r-pill); }
+body.tema-independencia .pill.activa { background: var(--celeste); color: var(--azul); border-color: #c3cede; }
+body.tema-independencia input, body.tema-independencia select, body.tema-independencia textarea {
+  border-radius: var(--r-sm); border-color: #dfe4ec;
+}
+
+/* ---------- barra de confirmación: banda bandera arriba -------------- */
+body.tema-independencia .confirmar {
+  border: 1px solid var(--borde); border-top: 0; border-radius: var(--r-lg);
+  padding: 0; overflow: hidden; background: #fff;
+}
+body.tema-independencia .confirmar::before {
+  content: ""; display: block; height: 5px; background: var(--bandera-h);
+}
+body.tema-independencia .confirmar > * { margin-left: 18px; margin-right: 18px; }
+body.tema-independencia .confirmar > b { display: block; margin-top: 16px; }
+body.tema-independencia .confirmar > form:last-child,
+body.tema-independencia .confirmar > p:last-child { margin-bottom: 16px; }
+
+/* ---------- ingreso (login.php / password.php / suspendida.php) ------- */
+body.tema-independencia.pantalla-ingreso { background: var(--paper); color: var(--tinta); }
+body.tema-independencia .login-box { margin-top: 34px; }
+/* la línea turquesa del borde superior de la tarjeta pasa a banda bandera */
 body.tema-independencia .login-box .card::before {
-  height: 5px; width: 96px;
-  background: linear-gradient(90deg, #0f3d99 0 34%, #fdfaf3 34% 50%, #ce1126 50% 100%);
+  height: 5px; width: auto; margin: -26px -26px 20px; border-radius: 0;
+  background: var(--bandera-h);
 }
-body.tema-independencia .login-box .card { box-shadow: var(--sh-lg), 0 0 0 6px rgba(255, 180, 63, .10); }
 
-/* cielo nocturno solo en las pantallas centradas (login / contraseña) */
-body.tema-independencia.pantalla-ingreso {
-  background-color: #081536;
+/* ======================================================================
+   DECORACIÓN 1 · .deco-franja  (banda superior del ingreso, con destello)
+   Se imprime como primer hijo de <main> en login/password/suspendida.
+   ====================================================================== */
+.deco-franja {
+  position: relative; overflow: hidden; pointer-events: none;
+  height: 120px; margin: -28px -18px 26px;   /* anula el padding de <main> */
+  background: var(--bandera);
+}
+.deco-franja::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 32%, rgba(255, 255, 255, .38) 50%, transparent 68%);
+  animation: msu-franja-brillo 6s ease-in-out infinite alternate;
+}
+@keyframes msu-franja-brillo { from { transform: translateX(-40%); } to { transform: translateX(40%); } }
+
+/* ======================================================================
+   DECORACIÓN 2 · .deco-bandera  (la bandera que ondea, con su mástil)
+   <span class="deco-bandera" aria-hidden="true"><i></i></span>
+   El <span> es el mástil (2 px de tinta); el <i> es el paño.
+   Dos animaciones simultáneas y de duración distinta:
+     a) msu-bandera-onda  3.2 s ease-in-out  → skewY ±1.6° + scaleY .985,
+        con transform-origin en el borde del mástil (0 50%), así el paño se
+        mece pero el asta queda clavada.
+     b) msu-bandera-tela  2.4 s linear       → una capa de franjas verticales
+        de luz/sombra (paso 18 px, 16 % de opacidad) que se desplaza con
+        background-position de 0 a 18px: son los pliegues de la tela
+        viajando del mástil hacia afuera.
+   3.2 y 2.4 no son múltiplos, así el bucle nunca se siente mecánico.
+   Solo se animan transform y background-position → compuestas por GPU,
+   sin reflow: fluido en teléfonos modestos.
+   ====================================================================== */
+.deco-bandera { display: inline-flex; align-items: stretch; flex: none; vertical-align: middle; }
+.deco-bandera::before { content: ""; display: block; width: 2px; background: #10214a; }
+.deco-bandera > i {
+  display: block; width: 40px; height: 26px; transform-origin: 0 50%;
   background-image:
-    radial-gradient(1000px 460px at 50% -12%, rgba(45, 88, 190, .55), transparent 62%),
-    linear-gradient(180deg, #081536, #0d2350 55%, #122b5e);
-  color: #e7ecfa;
+    repeating-linear-gradient(90deg, rgba(16, 33, 74, .16) 0 9px, rgba(255, 255, 255, .16) 9px 18px),
+    var(--bandera);
+  background-size: 18px 100%, 100% 100%;
+  animation: msu-bandera-onda 3.2s ease-in-out infinite, msu-bandera-tela 2.4s linear infinite;
 }
-body.tema-independencia.pantalla-ingreso .sub  { color: #c7d2ee; }
-body.tema-independencia.pantalla-ingreso .mini { color: #a9b8dd; }
-body.tema-independencia.pantalla-ingreso .foot { color: #8fa2cf; border-top-color: rgba(255, 210, 122, .16); }
-body.tema-independencia.pantalla-ingreso .msu-logo--xl { --msu-word: #fdfaf3; --msu-sub: #ffd27a; --msu-fg: #fdfaf3; }
+@keyframes msu-bandera-onda {
+  0%   { transform: skewY(0deg)    scaleY(1); }
+  25%  { transform: skewY(-1.6deg) scaleY(.985); }
+  50%  { transform: skewY(0deg)    scaleY(1); }
+  75%  { transform: skewY(1.6deg)  scaleY(.985); }
+  100% { transform: skewY(0deg)    scaleY(1); }
+}
+@keyframes msu-bandera-tela { from { background-position: 0 0; } to { background-position: 18px 0; } }
 
-/* ------- decoración: desfile de faroles (div.deco-faroles > i) ------------ */
-.deco-faroles { display: flex; justify-content: space-between; padding: 0 40px; pointer-events: none; }
-.deco-faroles i {
-  display: block; width: 42px; height: 50px; border-radius: 9px;
-  border: 2px solid rgba(206, 17, 38, .9);
-  background: linear-gradient(180deg, #ffe3a8, #ff9f2e);
-  box-shadow: 0 0 34px 8px rgba(255, 171, 63, .35), inset 0 -6px 14px rgba(206, 17, 38, .22);
-  animation: msu-farol 3.6s ease-in-out infinite;
+/* rótulo "SETIEMBRE · MES DE LA PATRIA" que acompaña a la bandera */
+.deco-mes {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+  font-family: var(--f-mono); font-size: .69rem; font-weight: 500;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--azul);
 }
-.deco-faroles i:nth-child(odd)   { margin-top: 26px; transform: scale(.92); animation-delay: .4s; }
-.deco-faroles i:nth-child(3n)    { margin-top: 44px; animation-delay: .9s; }
-@keyframes msu-farol { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.14); } }
 
-/* ------- decoración: banderines tricolor (div.deco-banderines) ----------- */
-.deco-banderines { display: flex; justify-content: center; padding-top: 14px; pointer-events: none; }
-.deco-banderines i {
-  display: block; width: 26px; height: 30px; opacity: .85;
-  clip-path: polygon(0 0, 100% 0, 50% 100%);
+/* --- ajustes responsive/accesibilidad propios del tema patrio --- */
+@media (max-width: 720px) {
+  .deco-franja { height: 74px; margin: -22px -14px 20px; }
+  .deco-bandera > i { width: 30px; height: 20px; }
+  .deco-mes { font-size: .64rem; letter-spacing: .16em; }
+  body.tema-independencia .topbar::after { height: 4px; bottom: -4px; }
+  body.tema-independencia .login-box .card::before { margin: -20px -20px 16px; }
 }
-.deco-banderines i:nth-child(3n+1) { background: #0f3d99; }
-.deco-banderines i:nth-child(3n+2) { background: #fdfaf3; }
-.deco-banderines i:nth-child(3n)   { background: #ce1126; }
+@media (prefers-reduced-motion: reduce) {
+  .deco-bandera > i, .deco-franja::after { animation: none !important; }
+}
+@media print {
+  .deco-franja, .deco-bandera, .deco-mes { display: none !important; }
+}
 
 /* ================================ 2. HALLOWEEN ============================
    31 de octubre · noche de calabazas (único tema oscuro)                     */
@@ -299,10 +449,7 @@ body.tema-navidad.pantalla-ingreso .brand-big b { color: #fdf6e9; font-size: 4.4
 
 /* ============================== responsive =============================== */
 @media (max-width: 720px) {
-  .deco-faroles   { padding: 0 8px; }
-  .deco-faroles i:nth-child(n+5),
   .deco-calabazas i:nth-child(n+5),
-  .deco-banderines i:nth-child(n+13),
   .deco-guirnalda i:nth-child(n+7),
   .deco-nieve i:nth-child(n+11) { display: none; }
   .deco-calabazas { padding: 0 8px; }
@@ -319,12 +466,12 @@ body.tema-navidad.pantalla-ingreso .brand-big b { color: #fdf6e9; font-size: 4.4
 
 /* ====================== accesibilidad / preferencias ===================== */
 @media (prefers-reduced-motion: reduce) {
-  .deco-faroles i, .deco-calabazas i, .deco-guirnalda i, .deco-nieve i, .deco-trineo {
+  .deco-calabazas i, .deco-guirnalda i, .deco-nieve i, .deco-trineo {
     animation: none !important;
   }
   .deco-nieve { display: none; }
 }
 @media print {
-  .deco-faroles, .deco-banderines, .deco-calabazas, .deco-guirnalda,
+  .deco-calabazas, .deco-guirnalda,
   .deco-nieve, .deco-luna, .deco-colinas, .deco-trineo { display: none !important; }
 }
