@@ -150,3 +150,17 @@ function email_recordatorio(string $name, string $roomName, int $startHour, int 
         "<strong style='color:#c14a44;'>Importante:</strong> confirma tu llegada en la app durante los primeros <strong>{$checkinMinutes} minutos</strong> de tu bloque, o el espacio se liberará para otros estudiantes."
     );
 }
+
+function email_reset_password(string $name, string $link): string {
+    // $noteHtml de email_layout se inserta sin escapar (igual que en las plantillas
+    // de arriba), por eso el botón con HTML va ahí y no en $rows (que sí se escapa).
+    $safeLink = _email_esc($link);
+    $button = "<a href='$safeLink' style='display:inline-block;background:#c14a44;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:10px 20px;border-radius:8px;font-family:Arial,Helvetica,sans-serif;margin-top:8px;'>Restablecer contraseña</a>";
+    return email_layout(
+        'RECUPERAR CONTRASEÑA', '#c14a44', '#f8e8e6',
+        $name, 'Solicitaste restablecer tu contraseña. Este enlace es válido por 30 minutos:',
+        [['Enlace válido por', '30 minutos']],
+        '#c14a44', '#f8e8e6',
+        "$button<br><br>Si el botón no funciona, copia y pega esta dirección en tu navegador:<br>$safeLink<br><br>Si no solicitaste este cambio, ignora este correo — tu contraseña actual sigue siendo válida."
+    );
+}

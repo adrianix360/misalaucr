@@ -134,6 +134,16 @@ function db_init(PDO $pdo, string $driver): void {
         created_at VARCHAR(19) NOT NULL
     )$suf");
 
+    // Tokens de recuperación de contraseña (un solo uso, expiran solos).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS password_resets (
+        id $PK,
+        user_id INT NOT NULL,
+        token_hash VARCHAR(64) NOT NULL,
+        expires_at VARCHAR(19) NOT NULL,
+        used TINYINT NOT NULL DEFAULT 0,
+        created_at VARCHAR(19) NOT NULL
+    )$suf");
+
     // Fila de espera por bloque exacto (sala + fecha + hora de inicio)
     $pdo->exec("CREATE TABLE IF NOT EXISTS waitlist (
         id $PK,

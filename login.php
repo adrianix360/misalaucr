@@ -39,6 +39,7 @@ $tema = tema_global();
       <br><br>
       <button class="btn full" type="submit"><?= e(tema_txt($tema, 'login_btn', 'Entrar')) ?></button>
     </form>
+    <p class="mini" style="text-align:center"><a href="forgot_password.php">¿Olvidaste tu contraseña?</a></p>
   </div>
   <p class="mini" style="text-align:center">¿No tienes cuenta? Solicítala en la oficina de tu asociación.</p>
 </div>
