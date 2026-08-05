@@ -172,7 +172,7 @@ body.tema-independencia .login-box .card::before {
 .deco-franja {
   position: relative; overflow: hidden; pointer-events: none;
   height: 120px; margin: -64px calc(-50vw + 50%) 26px;
-  width: 100vw;
+  width: 100vw; z-index: 51;
   background: var(--bandera);
 }
 .deco-franja::after {
