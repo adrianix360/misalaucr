@@ -166,6 +166,20 @@ function db_init(PDO $pdo, string $driver): void {
         created_at VARCHAR(19) NOT NULL
     )$suf");
 
+    // Horario de atención que cada asociación publica a sus estudiantes.
+    // slots/exceptions se guardan como JSON en TEXT (compatible MySQL y SQLite).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS org_schedules (
+        id $PK,
+        org_id INT NOT NULL,
+        title VARCHAR(150) NOT NULL DEFAULT 'Horario de atención',
+        primary_color VARCHAR(7) NOT NULL DEFAULT '#F4C430',
+        text_color VARCHAR(7) NOT NULL DEFAULT '#1A1A1A',
+        slots TEXT NULL,
+        exceptions TEXT NULL,
+        updated_at VARCHAR(19) NOT NULL,
+        CONSTRAINT uq_org_schedule UNIQUE (org_id)
+    )$suf");
+
     // Migraciones suaves: columnas nuevas sobre bases ya existentes
     foreach (["ALTER TABLE organizations ADD COLUMN frozen_reason VARCHAR(255) NULL",
               "ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL",

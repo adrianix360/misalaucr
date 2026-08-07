@@ -2,13 +2,14 @@
 /** MiSalaUCR — Plantilla HTML compartida. */
 
 require_once __DIR__ . '/temas.php';
+require_once __DIR__ . '/schedule.php';
 
 function e($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
 function page_top(string $title, ?array $u = null, string $active = ''): void {
     $links = [];
     if ($u) {
-        if ($u['role'] === 'student') $links = [['student.php', 'Reservar', 'student']];
+        if ($u['role'] === 'student') $links = [['student.php', 'Reservar', 'student'], ['horario.php', 'Horario', 'horario']];
         if ($u['role'] === 'admin')   $links = [['admin.php', 'Panel', 'admin']];
         if ($u['role'] === 'super')   $links = [['superadmin.php', 'Organizaciones', 'super']];
         $links[] = ['password.php', 'Contraseña', 'password'];
@@ -54,6 +55,7 @@ function page_top(string $title, ?array $u = null, string $active = ''): void {
   </div>
 </header>
 <?php if ($u) tema_deco_barra($tema); ?>
+<?php if ($u): ?><div class="wrap barra-abiertas"><?= render_open_orgs_pill() ?></div><?php endif; ?>
 <main class="wrap">
 <?php if (!$u) tema_deco_ingreso($tema); ?>
 <?php

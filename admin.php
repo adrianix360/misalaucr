@@ -2,6 +2,7 @@
 require_once __DIR__ . '/lib/auth.php';
 require_once __DIR__ . '/lib/rules.php';
 require_once __DIR__ . '/lib/layout.php';
+require_once __DIR__ . '/lib/schedule.php';
 
 $u = require_role(['admin']);
 $org = org_of($u);
@@ -16,6 +17,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $a = $_POST['a'] ?? '';
     $ok = false; $msg = 'Acción desconocida.';
+
+    /* Editor de horario (sin JavaScript): el formulario lleva un único
+       <input type="hidden" name="a" value="horario_guardar">, y los botones de
+       agregar/eliminar filas son <button name="add_slot|del_slot|add_exc|del_exc"
+       value="<índice>">. Así una sola petición conserva TODO lo escrito en el
+       formulario y además indica qué fila tocar (no se puede usar name="a" y
+       name="i" en un mismo botón). Aquí derivamos la acción real. */
+    if (isset($_POST['del_slot']))     $a = 'horario_del_slot';
+    elseif (isset($_POST['del_exc']))  $a = 'horario_del_exc';
+    elseif (isset($_POST['add_slot'])) $a = 'horario_add_slot';
+    elseif (isset($_POST['add_exc']))  $a = 'horario_add_exc';
 
     if ($a === 'cancelar_reserva') {
         [$ok, $msg] = cancel_reservation($u, (int)$_POST['res_id'], true);
@@ -160,6 +172,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($a === 'restriccion_eliminar') {
         $pdo->prepare("DELETE FROM room_blackouts WHERE id=? AND org_id=?")->execute([(int)$_POST['id'], $orgId]);
         $ok = true; $msg = 'Restricción eliminada.';
+
+    } elseif ($a === 'horario_guardar') {
+        $data = horario_desde_post();
+        [$ok, $msg] = save_org_schedule($orgId, $data);
+        if ($ok) {
+            unset($_SESSION['horario_draft']);
+            log_activity($orgId, 'horario', 'Horario de atención actualizado');
+        } else {
+            // se conserva lo escrito para que el admin no pierda el trabajo
+            $_SESSION['horario_draft'] = $data;
+        }
+
+    } elseif ($a === 'horario_add_slot') {
+        $data = horario_desde_post();
+        $data['slots'][] = ['start' => '08:00', 'end' => '09:00', 'days' => []];
+        $_SESSION['horario_draft'] = $data;
+        $ok = true; $msg = 'Franja agregada.';
+
+    } elseif ($a === 'horario_del_slot') {
+        $data = horario_desde_post();
+        $i = (int)($_POST['del_slot'] ?? -1);
+        if (isset($data['slots'][$i])) unset($data['slots'][$i]);
+        $data['slots'] = array_values($data['slots']);
+        $_SESSION['horario_draft'] = $data;
+        $ok = true; $msg = 'Franja eliminada.';
+
+    } elseif ($a === 'horario_add_exc') {
+        $data = horario_desde_post();
+        $data['exceptions'][] = ['date' => date('Y-m-d'), 'label' => ''];
+        $_SESSION['horario_draft'] = $data;
+        $ok = true; $msg = 'Excepción agregada.';
+
+    } elseif ($a === 'horario_del_exc') {
+        $data = horario_desde_post();
+        $i = (int)($_POST['del_exc'] ?? -1);
+        if (isset($data['exceptions'][$i])) unset($data['exceptions'][$i]);
+        $data['exceptions'] = array_values($data['exceptions']);
+        $_SESSION['horario_draft'] = $data;
+        $ok = true; $msg = 'Excepción eliminada.';
+
+    } elseif ($a === 'horario_descartar') {
+        unset($_SESSION['horario_draft']);
+        $ok = true; $msg = 'Cambios sin guardar descartados.';
+
+    } elseif ($a === 'horario_notificar') {
+        $h = get_org_schedule($orgId);
+        if (!$h || !$h['slots']) { $msg = 'Publica primero un horario antes de notificar.'; }
+        else {
+            $resumen = horario_resumen($h['slots']);
+            $st = $pdo->prepare("SELECT name, email FROM users WHERE org_id=? AND role='student' AND active=1 AND email IS NOT NULL AND email <> ''");
+            $st->execute([$orgId]);
+            // Cada envío es una llamada bloqueante a Resend. Con muchos estudiantes
+            // el request se pasaría del tiempo máximo del servidor y moriría a medias,
+            // así que solo se envía en vivo mientras haya margen: el resto queda
+            // 'pendiente' en la bitácora y se despacha desde Correos → Reintentar.
+            $inicio = microtime(true);
+            $n = 0; $enVivo = 0;
+            foreach ($st->fetchAll() as $est) {
+                $aunHayTiempo = (microtime(true) - $inicio) < 20;
+                queue_email($orgId, $est['email'], 'Nuevo horario de atención — ' . $org['name'],
+                            email_horario_actualizado($est['name'], $org['name'], $h['title'], $resumen),
+                            $aunHayTiempo);
+                if ($aunHayTiempo) $enVivo++;
+                $n++;
+            }
+            $pend = $n - $enVivo;
+            log_activity($orgId, 'horario', "Horario notificado a $n estudiante(s)");
+            $ok = true;
+            $msg = "Notificación encolada para $n estudiante(s)."
+                 . ($pend > 0 ? " $enVivo enviados ahora; $pend quedaron pendientes: use «Reintentar» en la pestaña Correos." : '');
+        }
     }
 
     flash_set($ok, $msg);
@@ -169,6 +252,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 /* ============ helpers ============ */
 /* (carne_ocupado y crear_estudiante viven en lib/rules.php, compartidas con el super-admin) */
+
+/* Arma el arreglo de horario a partir de los campos del formulario del editor.
+   Se usa en las 5 acciones "horario_*" que reenvían el formulario completo.
+   Campos esperados: title, primary_color, text_color,
+   slot_start[], slot_end[], slot_days[<i>][], exc_date[], exc_label[]. */
+function horario_desde_post(): array {
+    $starts = (array)($_POST['slot_start'] ?? []);
+    $ends   = (array)($_POST['slot_end'] ?? []);
+    $dias   = (array)($_POST['slot_days'] ?? []);
+    $slots  = [];
+    foreach ($starts as $i => $s) {
+        $ds = [];
+        foreach ((array)($dias[$i] ?? []) as $d) {
+            $d = (int)$d;
+            if ($d >= 1 && $d <= 7 && !in_array($d, $ds, true)) $ds[] = $d;
+        }
+        sort($ds);
+        $slots[] = [
+            'start' => trim((string)$s),
+            'end'   => trim((string)($ends[$i] ?? '')),
+            'days'  => $ds,
+        ];
+    }
+
+    $fechas = (array)($_POST['exc_date'] ?? []);
+    $labels = (array)($_POST['exc_label'] ?? []);
+    $excs   = [];
+    foreach ($fechas as $i => $f) {
+        $excs[] = [
+            'date'  => trim((string)$f),
+            'label' => trim((string)($labels[$i] ?? '')),
+        ];
+    }
+
+    return [
+        'title'         => trim((string)($_POST['title'] ?? '')),
+        'primary_color' => trim((string)($_POST['primary_color'] ?? '')),
+        'text_color'    => trim((string)($_POST['text_color'] ?? '')),
+        'slots'         => $slots,
+        'exceptions'    => $excs,
+    ];
+}
+
+/* Resumen en texto plano de las franjas, para el cuerpo del correo.
+   Ej: "Lunes, Martes: 07:00–08:50 · Miércoles: 14:00–16:00" */
+function horario_resumen(array $slots): string {
+    $nombres = horario_dias();
+    $partes = [];
+    foreach ($slots as $s) {
+        $ds = [];
+        foreach ((array)($s['days'] ?? []) as $d) {
+            if (isset($nombres[(int)$d])) $ds[] = $nombres[(int)$d];
+        }
+        if (!$ds) continue;
+        $partes[] = implode(', ', $ds) . ': ' . (string)($s['start'] ?? '') . '–' . (string)($s['end'] ?? '');
+    }
+    return implode(' · ', $partes);
+}
 
 function importar_csv(PDO $pdo, int $orgId): array {
     if (empty($_FILES['archivo']['tmp_name'])) return [false, 'No se recibió el archivo.', []];
@@ -196,7 +337,7 @@ function importar_csv(PDO $pdo, int $orgId): array {
 
 /* ============ VISTA ============ */
 page_top('Panel de administración', $u, 'admin');
-$tabs = ['reservas' => 'Reservas', 'estudiantes' => 'Estudiantes', 'salas' => 'Salas', 'restricciones' => 'Restricciones', 'reportes' => 'Reportes', 'config' => 'Configuración', 'correos' => 'Correos'];
+$tabs = ['reservas' => 'Reservas', 'estudiantes' => 'Estudiantes', 'salas' => 'Salas', 'restricciones' => 'Restricciones', 'reportes' => 'Reportes', 'config' => 'Configuración', 'horario' => 'Horario', 'correos' => 'Correos'];
 ?>
 <h1>Panel de administración</h1>
 <p class="sub"><?= e($org['name']) ?></p>
@@ -619,6 +760,137 @@ elseif ($tab === 'config'):
     </div>
     <br><button class="btn">Guardar configuración</button>
   </form>
+</div>
+
+<?php /* ================= HORARIO ================= */
+elseif ($tab === 'horario'):
+    $hGuardado = get_org_schedule($orgId);
+    $h = $_SESSION['horario_draft'] ?? $hGuardado ?? ['title' => 'Horario de atención', 'primary_color' => '#F4C430', 'text_color' => '#1A1A1A', 'slots' => [], 'exceptions' => []];
+    $nombresDias = horario_dias();
+    $slots = (array)($h['slots'] ?? []);
+    $excs  = (array)($h['exceptions'] ?? []);
+    // colores efectivos (con respaldo si vinieran vacíos o inválidos)
+    $colFondo = preg_match('/^#[0-9A-Fa-f]{6}$/', (string)($h['primary_color'] ?? '')) ? $h['primary_color'] : '#F4C430';
+    $colTexto = preg_match('/^#[0-9A-Fa-f]{6}$/', (string)($h['text_color'] ?? '')) ? $h['text_color'] : '#1A1A1A';
+    // estudiantes que recibirían el aviso
+    $st = $pdo->prepare("SELECT COUNT(*) c FROM users WHERE org_id=? AND role='student' AND active=1 AND email IS NOT NULL AND email <> ''");
+    $st->execute([$orgId]); $nDestinatarios = (int)$st->fetch()['c'];
+?>
+<div class="card">
+  <h2 style="margin-top:0">Horario de atención</h2>
+  <p class="mini">Este es el horario que verán sus estudiantes. Los botones «Agregar» y «Eliminar» conservan lo que ya escribió; los cambios se publican al presionar <b>Guardar horario</b>.</p>
+  <form method="post">
+    <?= csrf_field() ?><input type="hidden" name="a" value="horario_guardar">
+
+    <label>Título</label>
+    <input type="text" name="title" maxlength="120" value="<?= e((string)($h['title'] ?? '')) ?>" placeholder="Horario de atención">
+
+    <div class="dos-col">
+      <div><label>Color de fondo</label><input type="color" name="primary_color" value="<?= e($colFondo) ?>"></div>
+      <div><label>Color de texto</label><input type="color" name="text_color" value="<?= e($colTexto) ?>"></div>
+    </div>
+
+    <h3 style="margin:18px 0 6px">Franjas horarias</h3>
+    <?php if (!$slots): ?>
+      <p class="mini">Aún no hay franjas. Agregue al menos una franja para poder guardar y publicar el horario.</p>
+    <?php endif; ?>
+    <?php foreach ($slots as $i => $sl):
+        $sDays = (array)($sl['days'] ?? []); ?>
+      <div class="card" style="padding:10px; margin:8px 0">
+        <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap">
+          <div><label>Desde</label><input type="time" name="slot_start[]" value="<?= e((string)($sl['start'] ?? '')) ?>"></div>
+          <div><label>Hasta</label><input type="time" name="slot_end[]" value="<?= e((string)($sl['end'] ?? '')) ?>"></div>
+          <button type="submit" class="btn gris chico" name="del_slot" value="<?= (int)$i ?>" formnovalidate>Eliminar franja</button>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px">
+          <?php foreach ($nombresDias as $n => $d): ?>
+            <label style="display:flex; gap:4px; align-items:center; font-weight:400">
+              <input type="checkbox" name="slot_days[<?= (int)$i ?>][]" value="<?= (int)$n ?>" style="width:auto"
+                     <?= in_array((int)$n, array_map('intval', $sDays), true) ? 'checked' : '' ?>> <?= e($d) ?></label>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    <?php endforeach; ?>
+    <button type="submit" class="btn gris chico" name="add_slot" value="1" formnovalidate>Agregar franja</button>
+
+    <h3 style="margin:18px 0 6px">Excepciones (días sin atención)</h3>
+    <?php if (!$excs): ?>
+      <p class="mini">Sin excepciones. Úselas para feriados o actividades puntuales.</p>
+    <?php endif; ?>
+    <?php foreach ($excs as $i => $ex): ?>
+      <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin:8px 0">
+        <div><label>Fecha</label><input type="date" name="exc_date[]" value="<?= e((string)($ex['date'] ?? '')) ?>"></div>
+        <div style="flex:1; min-width:180px"><label>Motivo</label><input type="text" name="exc_label[]" maxlength="120" value="<?= e((string)($ex['label'] ?? '')) ?>" placeholder="Feriado, actividad…"></div>
+        <button type="submit" class="btn gris chico" name="del_exc" value="<?= (int)$i ?>" formnovalidate>Eliminar</button>
+      </div>
+    <?php endforeach; ?>
+    <button type="submit" class="btn gris chico" name="add_exc" value="1" formnovalidate>Agregar excepción</button>
+
+    <br><br><button class="btn">Guardar horario</button>
+  </form>
+  <?php if (isset($_SESSION['horario_draft'])): ?>
+    <div class="alert bad" style="margin-top:12px">
+      Tiene cambios <b>sin guardar</b>. No los verán los estudiantes hasta que presione «Guardar horario».
+      <form method="post" style="display:inline">
+        <?= csrf_field() ?><input type="hidden" name="a" value="horario_descartar">
+        <button class="btn gris chico">Descartar cambios</button>
+      </form>
+    </div>
+  <?php endif; ?>
+  <?php if ($hGuardado && !empty($hGuardado['updated_at'])): ?>
+    <p class="mini">Última actualización: <?= e(date('d/m/Y H:i', strtotime($hGuardado['updated_at']))) ?></p>
+  <?php endif; ?>
+</div>
+
+<div class="card tabla-scroll">
+  <h2 style="margin-top:0">Vista previa</h2>
+  <p class="mini">Así se verá el horario para los estudiantes.</p>
+  <table class="tabla horario-grid">
+    <caption style="caption-side:top; text-align:left; font-weight:700; padding:6px 0"><?= e((string)($h['title'] ?? '')) ?></caption>
+    <tr>
+      <th>Hora</th>
+      <?php foreach ($nombresDias as $d): ?><th><?= e($d) ?></th><?php endforeach; ?>
+    </tr>
+    <?php if (!$slots): ?>
+      <tr><td colspan="8" class="mini">Agregue franjas para ver la vista previa.</td></tr>
+    <?php endif; ?>
+    <?php foreach ($slots as $sl):
+        $sDays = array_map('intval', (array)($sl['days'] ?? [])); ?>
+    <tr>
+      <td><?= e((string)($sl['start'] ?? '')) ?>–<?= e((string)($sl['end'] ?? '')) ?></td>
+      <?php foreach ($nombresDias as $n => $d): ?>
+        <?php if (in_array((int)$n, $sDays, true)): ?>
+          <td style="background:<?= e($colFondo) ?>; color:<?= e($colTexto) ?>; text-align:center; font-weight:700">Atención</td>
+        <?php else: ?>
+          <td style="text-align:center; opacity:.4">—</td>
+        <?php endif; ?>
+      <?php endforeach; ?>
+    </tr>
+    <?php endforeach; ?>
+  </table>
+  <?php if ($excs): ?>
+    <p class="mini" style="margin-top:10px"><b>Excepciones:</b>
+      <?php $tx = [];
+            foreach ($excs as $ex) {
+                $f = (string)($ex['date'] ?? '');
+                $ts = preg_match('/^\d{4}-\d{2}-\d{2}$/', $f) ? strtotime($f) : false;
+                $tx[] = ($ts ? date('d/m/Y', $ts) : ($f !== '' ? $f : '—'))
+                      . (!empty($ex['label']) ? ' (' . $ex['label'] . ')' : '');
+            }
+            echo e(implode(' · ', $tx)); ?>
+    </p>
+  <?php endif; ?>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Notificar a estudiantes</h2>
+  <p class="mini"><b><?= $nDestinatarios ?></b> estudiante(s) con correo registrado recibirán el aviso.
+     El envío es <b>inmediato</b> al presionar el botón: revise antes la vista previa.</p>
+  <form method="post">
+    <?= csrf_field() ?><input type="hidden" name="a" value="horario_notificar">
+    <button class="btn gris">Notificar cambio de horario</button>
+  </form>
+  <p class="mini">Se envía el horario ya <b>guardado</b>, no el borrador en edición.</p>
 </div>
 
 <?php /* ================= CORREOS ================= */

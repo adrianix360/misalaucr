@@ -7,13 +7,21 @@
 
 require_once __DIR__ . '/db.php';
 
-function queue_email(?int $orgId, string $to, string $subject, string $body): void {
+/**
+ * Registra un correo y lo envía de inmediato.
+ * Con $send = false solo lo deja 'pendiente' en la bitácora, sin llamar a
+ * Resend: sirve para envíos masivos que no caben en un solo request; esos
+ * quedan listos para "Reintentar" desde Admin → Correos.
+ */
+function queue_email(?int $orgId, string $to, string $subject, string $body, bool $send = true): void {
     if (!$to) return;
     $pdo = db();
     $pdo->prepare("INSERT INTO email_log (org_id, to_email, subject, body, status, created_at)
                    VALUES (?,?,?,?,'pendiente',?)")
         ->execute([$orgId, $to, $subject, $body, date('Y-m-d H:i:s')]);
     $id = (int)$pdo->lastInsertId();
+
+    if (!$send) return;
 
     $key = trim(cfg()['resend_api_key'] ?? '');
     if ($key === '') return; // preparado, se enviará cuando exista API key
@@ -162,5 +170,17 @@ function email_reset_password(string $name, string $link): string {
         [['Enlace válido por', '30 minutos']],
         '#c14a44', '#f8e8e6',
         "$button<br><br>Si el botón no funciona, copia y pega esta dirección en tu navegador:<br>$safeLink<br><br>Si no solicitaste este cambio, ignora este correo — tu contraseña actual sigue siendo válida."
+    );
+}
+
+function email_horario_actualizado(string $name, string $orgName, string $title, string $resumen): string {
+    // $noteHtml se inserta sin escapar, así que el resumen se pasa por _email_esc().
+    $safeResumen = _email_esc($resumen);
+    return email_layout(
+        'HORARIO ACTUALIZADO', '#0d7f8f', '#e2f6f9',
+        $name, 'Tu asociación actualizó su horario de atención.',
+        [['Asociación', $orgName], ['Horario', $title]],
+        '#0d7f8f', '#e2f6f9',
+        "<strong style='color:#0d7f8f;'>Nuevo horario:</strong> $safeResumen<br><br>Puedes ver el horario completo en la pestaña <strong>Horario</strong> de MiSalaUCR."
     );
 }

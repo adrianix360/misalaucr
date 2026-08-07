@@ -425,3 +425,97 @@ main > .card, main > .kpis { animation-delay: .12s; }
   .grid-salas { grid-template-columns: 46px repeat(3, 1fr); gap: 5px; }
   .blk { min-height: 44px; font-size: .78rem; }
 }
+
+/* ===== Horario de atención ============================================== */
+
+/* ---------- Pastilla "Abiertas ahora" (details/summary, sin JS) -------- */
+.barra-abiertas { display: flex; justify-content: flex-end; margin-top: 8px; }
+.abiertas-login { display: flex; justify-content: center; margin-bottom: 16px; }
+
+.pastilla-abiertas { position: relative; display: inline-block; }
+.pastilla-abiertas > summary {
+  cursor: pointer; list-style: none; user-select: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: var(--r-pill);
+  border: 1px solid var(--borde); background: #fff; color: var(--gris);
+  font-family: var(--f-mono); font-size: .72rem; font-weight: 500;
+  letter-spacing: .04em; white-space: nowrap;
+  box-shadow: var(--sh-sm); transition: border-color var(--paso), color var(--paso);
+}
+.pastilla-abiertas > summary::-webkit-details-marker { display: none; }
+.pastilla-abiertas > summary::marker { content: ""; }
+.pastilla-abiertas > summary:hover { border-color: var(--teal); color: var(--teal-ink); }
+.pastilla-abiertas[open] > summary { border-color: var(--teal); color: var(--teal-ink); }
+
+.pastilla-abiertas > ul {
+  position: absolute; z-index: 30; right: 0; top: calc(100% + 6px);
+  min-width: 210px; max-width: 80vw; max-height: 250px; overflow-y: auto;
+  margin: 0; padding: 6px; list-style: none;
+  background: #fff; border: 1px solid var(--borde);
+  border-radius: var(--r-md); box-shadow: var(--sh-md);
+  text-align: left;
+}
+.pastilla-abiertas > ul > li {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 8px; border-radius: var(--r-sm); font-size: .8rem; line-height: 1.35;
+}
+.pastilla-abiertas > ul > li + li { border-top: 1px solid #f4f2ec; }
+.pastilla-abiertas .nom { flex: 1; color: var(--tinta); }
+.pastilla-abiertas .est {
+  font-family: var(--f-mono); font-size: .66rem; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--gris);
+}
+.pastilla-abiertas > ul > li.abierta .est { color: var(--verde); }
+
+/* En login la lista se despliega centrada bajo la pastilla. */
+.abiertas-login .pastilla-abiertas > ul { right: auto; left: 50%; transform: translateX(-50%); }
+
+/* ---------- Punto de estado ------------------------------------------- */
+.punto {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  flex: none; background: var(--gris);
+}
+.punto.abierta { background: #0e9c86; }
+.punto.cerrada { background: #b9b6ad; }
+
+/* ---------- Badge de estado (horario.php) ------------------------------ */
+.badge-estado {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 14px; border-radius: var(--r-pill);
+  font-family: var(--f-mono); font-size: .72rem; font-weight: 500;
+  text-transform: uppercase; letter-spacing: .06em;
+  border: 1px solid transparent;
+}
+.badge-estado.abierto { background: #d7f2ec; color: #0e9c86; border-color: #b6e6da; }
+.badge-estado.cerrado { background: #f8e8e6; color: #c14a44; border-color: #eec3bf; }
+
+/* ---------- Rejilla del horario ---------------------------------------- */
+.horario-grid { min-width: 420px; }
+.horario-grid th { text-align: center; }
+.horario-grid th:first-child { text-align: left; }
+.horario-grid td {
+  text-align: center; font-weight: 500;
+  border: 1px solid var(--borde); border-radius: 4px;
+  padding: 10px 8px; background-clip: padding-box;
+}
+.horario-grid td.franja {
+  background: var(--paper); text-align: left; white-space: nowrap;
+  font-family: var(--f-mono); font-size: .76rem; color: var(--tinta);
+}
+.horario-grid tbody tr:hover { background: none; }
+
+/* ---------- Excepciones ------------------------------------------------ */
+.lista-excepciones { list-style: none; margin: 10px 0 0; padding: 0; }
+.lista-excepciones li {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
+  padding: 8px 10px; border-radius: var(--r-sm); font-size: .9rem;
+}
+.lista-excepciones li + li { border-top: 1px solid #f0eee7; }
+.lista-excepciones li.hoy { background: var(--rojo-cl); }
+
+@media (max-width: 520px) {
+  .barra-abiertas { margin-top: 6px; }
+  .horario-grid { min-width: 340px; }
+  .horario-grid td { padding: 8px 5px; font-size: .85rem; }
+  .horario-grid td.franja { font-size: .68rem; }
+}

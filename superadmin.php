@@ -260,7 +260,7 @@ elseif ($tab === 'dashboard'):
          LEFT JOIN organizations o ON o.id = a.org_id
          ORDER BY a.id DESC LIMIT 20")->fetchAll();
     $iconos = ['reserva'=>'📅','cancelacion'=>'✖️','checkin'=>'✅','no_show'=>'🚫','estudiante'=>'👤',
-               'fila'=>'⏳','asignacion'=>'🎟️','organizacion'=>'🏛️','movido'=>'🔁'];
+               'fila'=>'⏳','asignacion'=>'🎟️','organizacion'=>'🏛️','movido'=>'🔁','horario'=>'🕒'];
 ?>
 <div class="kpis">
   <div class="kpi"><b><?= $totOrgs ?></b><span>organizaciones (<?= $activas ?> activas · <?= $totOrgs - $activas ?> congeladas)</span></div>
