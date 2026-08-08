@@ -305,6 +305,24 @@ body.tema-halloween.pantalla-ingreso {
 body.tema-halloween .login-box .brand-big b,
 body.tema-halloween .login-box .msu-word b { font-family: "Creepster", cursive; color: #ff8a2a; letter-spacing: .03em; }
 
+/* ------- pastilla "Abiertas ahora" (tema oscuro) ----------------------- */
+body.tema-halloween .pastilla-abiertas > summary {
+  background: #241a36; border-color: #3a2b52; color: #e6dcf5;
+}
+body.tema-halloween .pastilla-abiertas > summary:hover,
+body.tema-halloween .pastilla-abiertas[open] > summary { border-color: #ff7a1a; }
+body.tema-halloween .pastilla-abiertas__panel {
+  background: #241a36; border-color: #3a2b52;
+}
+body.tema-halloween .pastilla-abiertas__barras i { background: #3a2b52; }
+body.tema-halloween .pastilla-abiertas__flecha {
+  background: rgba(255, 122, 26, .18); color: #ffb03a;
+}
+body.tema-halloween .pastilla-abiertas__rotulo { color: #8d80a8; }
+body.tema-halloween .pastilla-abiertas__lista .nom { color: #f6f1e6; }
+body.tema-halloween .pastilla-abiertas__lista > li.cerrada .nom { color: #8d80a8; }
+body.tema-halloween .pastilla-abiertas__lista > li.abierta .est { color: #a5eaa7; }
+
 /* ------- decoración: calabazas colgantes (div.deco-calabazas > i) --------- */
 .deco-calabazas { display: flex; justify-content: space-between; padding: 0 44px; pointer-events: none; }
 .deco-calabazas i {

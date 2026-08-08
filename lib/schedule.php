@@ -221,29 +221,56 @@ function schedule_upcoming_exceptions(?array $schedule): array {
     return $out;
 }
 
-/** Pastilla desplegable "Abiertas ahora (N)". HTML puro, sin JavaScript. */
+/** Pastilla desplegable "Abiertas ahora (N/total)". HTML puro, sin JavaScript. */
 function render_open_orgs_pill(): string {
     $orgs = list_open_organizations();
     if (!$orgs) return '';
 
+    $total = count($orgs);
     $abiertas = 0;
     foreach ($orgs as $o) { if ($o['open']) $abiertas++; }
 
-    // Escape local para no depender de layout.php (evita dependencia circular).
-    $items = '';
+    // Dos grupos (abiertas primero, ya vienen ordenadas así por list_open_organizations()).
+    $listaAbiertas = '';
+    $listaCerradas = '';
     foreach ($orgs as $o) {
-        $cls = $o['open'] ? 'abierta' : 'cerrada';
-        $est = $o['open'] ? 'Abierto' : 'Cerrado';
         $nom = htmlspecialchars($o['name'], ENT_QUOTES, 'UTF-8');
-        $items .= "<li class=\"$cls\"><span class=\"punto $cls\"></span>"
-                . "<span class=\"nom\">$nom</span><span class=\"est\">$est</span></li>";
+        if ($o['open']) {
+            $listaAbiertas .= "<li class=\"abierta\"><span class=\"punto abierta\"></span>"
+                . "<span class=\"nom\">$nom</span><span class=\"est\">Abierta</span></li>";
+        } else {
+            $listaCerradas .= "<li class=\"cerrada\"><span class=\"punto cerrada\"></span>"
+                . "<span class=\"nom\">$nom</span><span class=\"est\">Cerrada</span></li>";
+        }
     }
+
+    // Barra de progreso: un segmento por asociación, encendido = abierta.
+    $barras = '';
+    for ($i = 0; $i < $total; $i++) {
+        $barras .= '<i class="' . ($i < $abiertas ? 'on' : '') . '"></i>';
+    }
+
+    $grupoAbiertas = $listaAbiertas !== ''
+        ? "<div class=\"pastilla-abiertas__rotulo\">Abiertas</div><ul class=\"pastilla-abiertas__lista\">$listaAbiertas</ul>"
+        : '';
+    $grupoCerradas = $listaCerradas !== ''
+        ? "<div class=\"pastilla-abiertas__rotulo\">Cerradas</div><ul class=\"pastilla-abiertas__lista\">$listaCerradas</ul>"
+        : '';
 
     // El punto del resumen refleja si hay alguna abierta (verde) o ninguna (gris).
     $puntoCls = $abiertas > 0 ? 'abierta' : 'cerrada';
 
     return "<details class=\"pastilla-abiertas\">"
-         . "<summary><span class=\"punto $puntoCls\"></span>Abiertas ahora ($abiertas)</summary>"
-         . "<ul class=\"mini\">$items</ul>"
+         . "<summary>"
+         .   "<span class=\"punto $puntoCls\"></span>"
+         .   "<span class=\"pastilla-abiertas__rot\">Abiertas ahora</span>"
+         .   "<span class=\"pastilla-abiertas__cuenta\">$abiertas/$total</span>"
+         .   "<span class=\"pastilla-abiertas__flecha\">&#9662;</span>"
+         . "</summary>"
+         . "<div class=\"pastilla-abiertas__panel\">"
+         .   "<div class=\"pastilla-abiertas__barras\">$barras</div>"
+         .   $grupoAbiertas
+         .   $grupoCerradas
+         . "</div>"
          . "</details>";
 }
