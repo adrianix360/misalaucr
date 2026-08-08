@@ -34,8 +34,8 @@ function page_top(string $title, ?array $u = null, string $active = ''): void {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@500<?= tema_fuentes($tema) ?>&display=swap">
-<link rel="stylesheet" href="assets/style.css">
-<?php if ($tema !== 'none'): ?><link rel="stylesheet" href="assets/temas.css"><?php endif; ?>
+<link rel="stylesheet" href="assets/style.css?v=<?= (int)(@filemtime(__DIR__ . '/../assets/style.css') ?: 1) ?>">
+<?php if ($tema !== 'none'): ?><link rel="stylesheet" href="assets/temas.css?v=<?= (int)(@filemtime(__DIR__ . '/../assets/temas.css') ?: 1) ?>"><?php endif; ?>
 </head>
 <body class="<?= $tema !== 'none' ? 'tema-' . e($tema) . $pantalla : '' ?>">
 <header class="topbar">
