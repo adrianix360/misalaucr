@@ -22,6 +22,10 @@ function page_top(string $title, ?array $u = null, string $active = ''): void {
     $GLOBALS['_msu_tema'] = $tema;
     $GLOBALS['_msu_ingreso'] = !$u;
     $pantalla = $active === '' ? ' pantalla-ingreso' : '';
+    // Versión de los assets estáticos (fecha de modificación de style.css). Se
+    // usa para el cache-busting del <link> Y para que el JS de abajo detecte
+    // cuándo hay un despliegue nuevo mientras la pestaña ya estaba abierta.
+    $assetVer = (int)(@filemtime(__DIR__ . '/../assets/style.css') ?: 1);
     ?><!DOCTYPE html>
 <html lang="es">
 <head>
@@ -34,8 +38,9 @@ function page_top(string $title, ?array $u = null, string $active = ''): void {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@500<?= tema_fuentes($tema) ?>&display=swap">
-<link rel="stylesheet" href="assets/style.css?v=<?= (int)(@filemtime(__DIR__ . '/../assets/style.css') ?: 1) ?>">
+<link rel="stylesheet" href="assets/style.css?v=<?= $assetVer ?>">
 <?php if ($tema !== 'none'): ?><link rel="stylesheet" href="assets/temas.css?v=<?= (int)(@filemtime(__DIR__ . '/../assets/temas.css') ?: 1) ?>"><?php endif; ?>
+<script>window.MSU_VER = <?= $assetVer ?>;</script>
 </head>
 <body class="<?= $tema !== 'none' ? 'tema-' . e($tema) . $pantalla : '' ?>">
 <header class="topbar">
@@ -69,6 +74,54 @@ function page_bottom(): void {
     ?></main>
 <?php if ($GLOBALS['_msu_ingreso'] ?? false) tema_deco_pie($tema); ?>
 <footer class="foot">MiSalaUCR · Sistema de reservación de salas de estudio · <?= date('Y') ?></footer>
+<script>
+/* Avisa si hay una versión más nueva desplegada mientras esta pestaña ya
+   estaba abierta (el <link> con ?v= solo ayuda en cargas nuevas). Revisa
+   cada minuto contra version.php; si detecta cambio, avisa y recarga sola
+   tras una cuenta atrás, dando tiempo a terminar de escribir. */
+(function () {
+  if (!window.MSU_VER) return;
+  var VER = window.MSU_VER;
+  var temporizador = null;
+
+  function verificar() {
+    fetch('version.php?_=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.text(); })
+      .then(function (txt) {
+        var nueva = parseInt(txt, 10);
+        if (nueva && nueva > VER) mostrarAviso(nueva);
+      })
+      .catch(function () {});
+  }
+
+  function mostrarAviso(nueva) {
+    if (document.getElementById('msuAvisoUpd')) return;
+    if (sessionStorage.getItem('msu_ver_ignorado') === String(nueva)) return;
+    var seg = 8;
+    var div = document.createElement('div');
+    div.id = 'msuAvisoUpd';
+    div.className = 'msu-aviso-upd';
+    div.innerHTML = '<span>Hay una actualización disponible. Se recargará en <b id="msuSeg">' + seg + '</b>s.</span>'
+      + '<button type="button" id="msuRecargar">Recargar ahora</button>'
+      + '<button type="button" id="msuSeguir">Seguir editando</button>';
+    document.body.appendChild(div);
+    document.getElementById('msuRecargar').addEventListener('click', function () { location.reload(); });
+    document.getElementById('msuSeguir').addEventListener('click', function () {
+      clearInterval(temporizador);
+      sessionStorage.setItem('msu_ver_ignorado', String(nueva));
+      div.remove();
+    });
+    temporizador = setInterval(function () {
+      seg--;
+      var el = document.getElementById('msuSeg');
+      if (el) el.textContent = seg;
+      if (seg <= 0) { clearInterval(temporizador); location.reload(); }
+    }, 1000);
+  }
+
+  setInterval(verificar, 60000);
+})();
+</script>
 </body>
 </html><?php
 }

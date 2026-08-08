@@ -577,6 +577,25 @@ main > .card, main > .kpis { animation-delay: .12s; }
   .gh-celda { min-height: 20px; }
 }
 
+/* ---------- Aviso de actualización disponible -------------------------- */
+.msu-aviso-upd {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 60;
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap; max-width: 92vw;
+  background: var(--navy); color: #fff; border-radius: var(--r-pill);
+  padding: 10px 10px 10px 18px; box-shadow: var(--sh-lg);
+  font-size: .86rem; animation: msu-rise .3s cubic-bezier(.2,.8,.2,1);
+}
+.msu-aviso-upd b { font-variant-numeric: tabular-nums; }
+.msu-aviso-upd button {
+  border: none; border-radius: var(--r-pill); padding: 7px 14px; cursor: pointer;
+  font-family: var(--f-display); font-weight: 600; font-size: .82rem;
+}
+.msu-aviso-upd #msuRecargar { background: var(--teal); color: var(--navy); }
+.msu-aviso-upd #msuSeguir { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.4); }
+@media (max-width: 520px) {
+  .msu-aviso-upd { left: 10px; right: 10px; bottom: 10px; transform: none; }
+}
+
 /* ---------- Excepciones ------------------------------------------------ */
 .lista-excepciones { list-style: none; margin: 10px 0 0; padding: 0; }
 .lista-excepciones li {
