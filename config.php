@@ -54,6 +54,18 @@ $defaults = [
         'admin_email' => 'admin.civil@misalaucr.test',
         'admin_pass'  => '',
     ],
+
+    /**
+     * Límite de intentos (login) y solicitudes (recuperación de contraseña)
+     * por identificador y por IP, para frenar fuerza bruta / spam. Ver
+     * lib/throttle.php.
+     */
+    'security' => [
+        'login_max_attempts'   => 5,
+        'login_window_minutes' => 15,
+        'reset_max_attempts'   => 3,
+        'reset_window_minutes' => 60,
+    ],
 ];
 
 $localFile = __DIR__ . '/config.local.php';

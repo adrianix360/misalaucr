@@ -9,5 +9,7 @@
  *   php /home/USUARIO/public_html/cron.php
  */
 require_once __DIR__ . '/lib/rules.php';
+require_once __DIR__ . '/lib/throttle.php';
 process_automatic();
+throttle_cleanup();
 echo "OK " . date('Y-m-d H:i:s') . "\n";

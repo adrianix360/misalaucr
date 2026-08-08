@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/lib/auth.php';
 require_once __DIR__ . '/lib/layout.php';
+require_once __DIR__ . '/lib/throttle.php';
 boot();
 
 if (current_user()) { header('Location: ' . home_for(current_user())); exit; }
@@ -8,13 +9,25 @@ if (current_user()) { header('Location: ' . home_for(current_user())); exit; }
 $error = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
-    $u = attempt_login($_POST['ident'] ?? '', $_POST['password'] ?? '');
-    if ($u && !empty($u['_suspendida'])) {
-        $r = trim((string)($u['frozen_reason'] ?? ''));
-        header('Location: suspendida.php' . ($r !== '' ? '?r=' . urlencode($r) : '')); exit;
+    $ip = client_ip();
+    $ident = trim($_POST['ident'] ?? '');
+    [$allowed] = throttle_check('login', $ident, $ip);
+
+    if (!$allowed) {
+        $error = 'Demasiados intentos. Espera unos minutos e intenta de nuevo.';
+    } else {
+        $u = attempt_login($ident, $_POST['password'] ?? '');
+        if ($u && !empty($u['_suspendida'])) {
+            $r = trim((string)($u['frozen_reason'] ?? ''));
+            header('Location: suspendida.php' . ($r !== '' ? '?r=' . urlencode($r) : '')); exit;
+        }
+        if ($u) {
+            throttle_clear('login', $ident, $ip);
+            header('Location: ' . ($u['must_change'] ? 'password.php' : home_for($u))); exit;
+        }
+        throttle_record('login', $ident, $ip);
+        $error = 'Carné/correo o contraseña incorrectos.';
     }
-    if ($u) { header('Location: ' . ($u['must_change'] ? 'password.php' : home_for($u))); exit; }
-    $error = 'Carné/correo o contraseña incorrectos.';
 }
 
 page_top('Iniciar sesión');

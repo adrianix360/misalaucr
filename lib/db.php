@@ -144,6 +144,21 @@ function db_init(PDO $pdo, string $driver): void {
         created_at VARCHAR(19) NOT NULL
     )$suf");
 
+    // Intentos de login/recuperación de contraseña, para limitar fuerza bruta
+    // y spam de recuperación (por identificador y por IP). Se limpia solo
+    // (ver throttle_cleanup() en lib/throttle.php).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS login_attempts (
+        id $PK,
+        kind VARCHAR(20) NOT NULL,   -- 'login' | 'reset'
+        ident VARCHAR(190) NOT NULL,
+        ip VARCHAR(45) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )$suf");
+    foreach (["CREATE INDEX idx_login_attempts_kind_ident ON login_attempts (kind, ident)",
+              "CREATE INDEX idx_login_attempts_kind_ip ON login_attempts (kind, ip)"] as $sql) {
+        try { $pdo->exec($sql); } catch (PDOException $e) { /* el índice ya existe */ }
+    }
+
     // Fila de espera por bloque exacto (sala + fecha + hora de inicio)
     $pdo->exec("CREATE TABLE IF NOT EXISTS waitlist (
         id $PK,
