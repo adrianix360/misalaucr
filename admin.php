@@ -769,6 +769,22 @@ elseif ($tab === 'horario'):
     $nombresDias = horario_dias();
     $slots = (array)($h['slots'] ?? []);
     $excs  = (array)($h['exceptions'] ?? []);
+    // La rejilla interactiva trabaja en horas exactas (HH:00). Las franjas ya
+    // guardadas con minutos distintos (creadas antes de este editor) no se
+    // pueden pintar en la rejilla, así que se listan aparte y solo se pueden
+    // quitar, para no perderlas silenciosamente al guardar de nuevo.
+    $celdasIniciales = []; $slotsLegado = [];
+    foreach ($slots as $sl) {
+        $st = (string)($sl['start'] ?? ''); $en = (string)($sl['end'] ?? '');
+        if (substr($st, -3) === ':00' && substr($en, -3) === ':00') {
+            $ini = (int)substr($st, 0, 2); $fin = (int)substr($en, 0, 2);
+            foreach ((array)($sl['days'] ?? []) as $d) {
+                for ($hh = $ini; $hh < $fin; $hh++) $celdasIniciales[] = (int)$d . '-' . $hh;
+            }
+        } else {
+            $slotsLegado[] = $sl;
+        }
+    }
     // colores efectivos (con respaldo si vinieran vacíos o inválidos)
     $colFondo = preg_match('/^#[0-9A-Fa-f]{6}$/', (string)($h['primary_color'] ?? '')) ? $h['primary_color'] : '#F4C430';
     $colTexto = preg_match('/^#[0-9A-Fa-f]{6}$/', (string)($h['text_color'] ?? '')) ? $h['text_color'] : '#1A1A1A';
@@ -778,7 +794,7 @@ elseif ($tab === 'horario'):
 ?>
 <div class="card">
   <h2 style="margin-top:0">Horario de atención</h2>
-  <p class="mini">Este es el horario que verán sus estudiantes. Los botones «Agregar» y «Eliminar» conservan lo que ya escribió; los cambios se publican al presionar <b>Guardar horario</b>.</p>
+  <p class="mini">Este es el horario que verán sus estudiantes. Los cambios se publican al presionar <b>Guardar horario</b>.</p>
   <form method="post">
     <?= csrf_field() ?><input type="hidden" name="a" value="horario_guardar">
 
@@ -791,27 +807,47 @@ elseif ($tab === 'horario'):
     </div>
 
     <h3 style="margin:18px 0 6px">Franjas horarias</h3>
-    <?php if (!$slots): ?>
-      <p class="mini">Aún no hay franjas. Agregue al menos una franja para poder guardar y publicar el horario.</p>
-    <?php endif; ?>
-    <?php foreach ($slots as $i => $sl):
-        $sDays = (array)($sl['days'] ?? []); ?>
-      <div class="card" style="padding:10px; margin:8px 0">
-        <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap">
-          <div><label>Desde</label><input type="time" name="slot_start[]" value="<?= e((string)($sl['start'] ?? '')) ?>"></div>
-          <div><label>Hasta</label><input type="time" name="slot_end[]" value="<?= e((string)($sl['end'] ?? '')) ?>"></div>
-          <button type="submit" class="btn gris chico" name="del_slot" value="<?= (int)$i ?>" formnovalidate>Eliminar franja</button>
-        </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px">
+    <p class="mini">Haga clic y arrastre sobre la rejilla para marcar las horas de atención (puede arrastrar sobre varios días a la vez). En el teléfono, mantenga presionado y arrastre. Los cambios se ven al instante; se publican al presionar <b>Guardar horario</b>.</p>
+
+    <div class="gh-toolbar">
+      <button type="button" class="btn gris chico" id="ghCopiarSemana">Copiar lunes a Lun–Vie</button>
+      <button type="button" class="btn gris chico" id="ghLimpiar">Limpiar todo</button>
+    </div>
+
+    <div class="tabla-scroll">
+      <div class="grid-horario" id="ghGrid" data-inicial='<?= e(json_encode($celdasIniciales)) ?>'>
+        <div class="gh-cell gh-esq"></div>
+        <?php foreach ($nombresDias as $n => $d): ?>
+          <div class="gh-cell gh-dia"><?= e(mb_substr($d, 0, 3)) ?></div>
+        <?php endforeach; ?>
+        <?php for ($hh = 0; $hh <= 23; $hh++): ?>
+          <div class="gh-cell gh-hora"><?= sprintf('%02d:00', $hh) ?></div>
           <?php foreach ($nombresDias as $n => $d): ?>
-            <label style="display:flex; gap:4px; align-items:center; font-weight:400">
-              <input type="checkbox" name="slot_days[<?= (int)$i ?>][]" value="<?= (int)$n ?>" style="width:auto"
-                     <?= in_array((int)$n, array_map('intval', $sDays), true) ? 'checked' : '' ?>> <?= e($d) ?></label>
+            <button type="button" class="gh-cell gh-celda" data-dia="<?= (int)$n ?>" data-hora="<?= $hh ?>"
+                    aria-pressed="false" aria-label="<?= e($d) ?> <?= sprintf('%02d:00', $hh) ?>"></button>
           <?php endforeach; ?>
-        </div>
+        <?php endfor; ?>
       </div>
-    <?php endforeach; ?>
-    <button type="submit" class="btn gris chico" name="add_slot" value="1" formnovalidate>Agregar franja</button>
+    </div>
+    <p class="mini" id="ghResumen" style="margin-top:8px"></p>
+    <div id="ghCamposOcultos"></div>
+
+    <?php if ($slotsLegado): ?>
+    <div class="alert bad" style="margin-top:10px">
+      <b>Franjas con minutos personalizados</b> (creadas antes de este editor; la rejilla nueva solo trabaja en horas exactas):
+      <ul class="lista-excepciones" id="ghLegado">
+        <?php foreach ($slotsLegado as $li => $sl):
+            $dNom = [];
+            foreach ((array)($sl['days'] ?? []) as $d) if (isset($nombresDias[(int)$d])) $dNom[] = $nombresDias[(int)$d];
+        ?>
+        <li data-legado-i="<?= (int)$li ?>">
+          <span><?= e(implode(', ', $dNom)) ?>: <?= e((string)($sl['start'] ?? '')) ?>–<?= e((string)($sl['end'] ?? '')) ?></span>
+          <button type="button" class="btn gris chico" data-quitar-legado="<?= (int)$li ?>">Quitar</button>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+    <?php endif; ?>
 
     <h3 style="margin:18px 0 6px">Excepciones (días sin atención)</h3>
     <?php if (!$excs): ?>
@@ -841,6 +877,131 @@ elseif ($tab === 'horario'):
     <p class="mini">Última actualización: <?= e(date('d/m/Y H:i', strtotime($hGuardado['updated_at']))) ?></p>
   <?php endif; ?>
 </div>
+
+<script>
+(function () {
+  var grid = document.getElementById('ghGrid');
+  if (!grid) return;
+  var DIAS = <?= json_encode(array_keys($nombresDias)) ?>;
+  var NOMBRES_DIAS = <?= json_encode($nombresDias, JSON_UNESCAPED_UNICODE) ?>;
+  var celdas = Array.prototype.slice.call(grid.querySelectorAll('.gh-celda'));
+  var inicial = {};
+  try { JSON.parse(grid.getAttribute('data-inicial') || '[]').forEach(function (k) { inicial[k] = true; }); } catch (e) {}
+  var legadoVivo = <?= json_encode(array_values($slotsLegado), JSON_UNESCAPED_UNICODE) ?>
+    .map(function (s, i) { return { i: i, start: s.start, end: s.end, days: (s.days || []).map(Number) }; });
+
+  function celdaDe(d, h) { return grid.querySelector('.gh-celda[data-dia="' + d + '"][data-hora="' + h + '"]'); }
+  function marcar(c, on) { if (!c) return; c.classList.toggle('on', on); c.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+  function estaOn(c) { return !!c && c.classList.contains('on'); }
+
+  celdas.forEach(function (c) { if (inicial[c.dataset.dia + '-' + c.dataset.hora]) marcar(c, true); });
+
+  var pintando = false, modoOn = true;
+  function iniciarPintura(c) { pintando = true; modoOn = !estaOn(c); marcar(c, modoOn); sync(); }
+  function pintarSobre(c) { if (pintando && c) { marcar(c, modoOn); sync(); } }
+  function terminarPintura() { pintando = false; }
+  function celdaEnPunto(x, y) {
+    var el = document.elementFromPoint(x, y);
+    return el && el.classList && el.classList.contains('gh-celda') ? el : null;
+  }
+
+  celdas.forEach(function (c) {
+    c.addEventListener('mousedown', function (e) { e.preventDefault(); iniciarPintura(c); });
+    c.addEventListener('mouseenter', function () { pintarSobre(c); });
+    c.addEventListener('touchstart', function (e) { e.preventDefault(); iniciarPintura(c); }, { passive: false });
+    c.addEventListener('touchmove', function (e) {
+      e.preventDefault();
+      var t = e.touches[0];
+      pintarSobre(celdaEnPunto(t.clientX, t.clientY));
+    }, { passive: false });
+    c.addEventListener('keydown', function (e) {
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); marcar(c, !estaOn(c)); sync(); }
+    });
+  });
+  document.addEventListener('mouseup', terminarPintura);
+  document.addEventListener('touchend', terminarPintura);
+
+  var btnLimpiar = document.getElementById('ghLimpiar');
+  if (btnLimpiar) btnLimpiar.addEventListener('click', function () {
+    if (!confirm('¿Borrar todas las franjas marcadas en la rejilla?')) return;
+    celdas.forEach(function (c) { marcar(c, false); });
+    sync();
+  });
+
+  var btnCopiar = document.getElementById('ghCopiarSemana');
+  if (btnCopiar) btnCopiar.addEventListener('click', function () {
+    for (var h = 0; h <= 23; h++) {
+      var on = estaOn(celdaDe(1, h));
+      [2, 3, 4, 5].forEach(function (d) { marcar(celdaDe(d, h), on); });
+    }
+    sync();
+  });
+
+  document.querySelectorAll('[data-quitar-legado]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var idx = parseInt(btn.getAttribute('data-quitar-legado'), 10);
+      legadoVivo = legadoVivo.filter(function (s) { return s.i !== idx; });
+      var li = btn.closest('li');
+      if (li) li.remove();
+      sync();
+    });
+  });
+
+  function pad(h) { return (h < 10 ? '0' : '') + h + ':00'; }
+
+  function construirFranjasDesdeGrid() {
+    var grupos = {}, orden = [];
+    DIAS.forEach(function (d) {
+      var horas = [];
+      for (var h = 0; h <= 23; h++) if (estaOn(celdaDe(d, h))) horas.push(h);
+      var rangos = [], ini = null, prev = null;
+      horas.forEach(function (h) {
+        if (ini === null) { ini = h; prev = h; }
+        else if (h === prev + 1) { prev = h; }
+        else { rangos.push([ini, prev + 1]); ini = h; prev = h; }
+      });
+      if (ini !== null) rangos.push([ini, prev + 1]);
+      rangos.forEach(function (r) {
+        var key = r[0] + '-' + r[1];
+        if (!grupos[key]) { grupos[key] = { start: r[0], end: r[1], days: [] }; orden.push(key); }
+        grupos[key].days.push(d);
+      });
+    });
+    return orden.map(function (k) { return grupos[k]; });
+  }
+
+  function sync() {
+    var franjas = construirFranjasDesdeGrid();
+    var cont = document.getElementById('ghCamposOcultos');
+    cont.innerHTML = '';
+    var i = 0;
+    function agregar(start, end, days) {
+      cont.insertAdjacentHTML('beforeend', '<input type="hidden" name="slot_start[]" value="' + start + '">');
+      cont.insertAdjacentHTML('beforeend', '<input type="hidden" name="slot_end[]" value="' + end + '">');
+      days.forEach(function (d) {
+        cont.insertAdjacentHTML('beforeend', '<input type="hidden" name="slot_days[' + i + '][]" value="' + d + '">');
+      });
+      i++;
+    }
+    franjas.forEach(function (f) { agregar(pad(f.start), pad(f.end), f.days); });
+    legadoVivo.forEach(function (s) { agregar(s.start, s.end, s.days); });
+
+    var partes = franjas.map(function (f) {
+      var nombres = f.days.map(function (d) { return NOMBRES_DIAS[d]; }).join(', ');
+      return nombres + ': ' + pad(f.start) + '–' + pad(f.end);
+    });
+    var resumen = document.getElementById('ghResumen');
+    if (resumen) {
+      resumen.textContent = partes.length ? partes.join(' · ')
+        : (legadoVivo.length ? '' : 'Aún no hay franjas marcadas. Marque al menos una hora en la rejilla para poder guardar.');
+    }
+  }
+
+  sync();
+  var form = grid.closest('form');
+  if (form) form.addEventListener('submit', function () { sync(); });
+})();
+</script>
 
 <div class="card tabla-scroll">
   <h2 style="margin-top:0">Vista previa</h2>

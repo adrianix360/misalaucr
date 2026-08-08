@@ -548,6 +548,35 @@ main > .card, main > .kpis { animation-delay: .12s; }
 }
 .horario-grid tbody tr:hover { background: none; }
 
+/* ---------- Editor interactivo de franjas (rejilla clic-y-arrastre) --- */
+.gh-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 10px; }
+.grid-horario {
+  display: grid; grid-template-columns: 56px repeat(7, minmax(38px, 1fr));
+  gap: 3px; min-width: 460px; user-select: none;
+}
+.gh-cell { display: flex; align-items: center; justify-content: center; font-size: .72rem; }
+.gh-esq { background: transparent; }
+.gh-dia {
+  font-family: var(--f-mono); font-weight: 500; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--teal-ink); padding: 4px 0;
+}
+.gh-hora {
+  font-family: var(--f-mono); color: var(--gris); font-size: .68rem;
+  justify-content: flex-end; padding-right: 6px; white-space: nowrap;
+}
+.gh-celda {
+  min-height: 22px; border: 1px solid var(--borde); border-radius: 4px;
+  background: #fff; cursor: pointer; padding: 0; touch-action: none;
+  transition: background var(--paso), border-color var(--paso);
+}
+.gh-celda:hover { border-color: var(--teal); }
+.gh-celda.on { background: var(--teal); border-color: var(--teal-ink); }
+.gh-celda.on:hover { background: var(--teal-ink); }
+@media (max-width: 520px) {
+  .grid-horario { grid-template-columns: 44px repeat(7, minmax(30px, 1fr)); }
+  .gh-celda { min-height: 20px; }
+}
+
 /* ---------- Excepciones ------------------------------------------------ */
 .lista-excepciones { list-style: none; margin: 10px 0 0; padding: 0; }
 .lista-excepciones li {
