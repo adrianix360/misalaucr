@@ -533,20 +533,29 @@ main > .card, main > .kpis { animation-delay: .12s; }
 .badge-estado.abierto { background: #d7f2ec; color: #0e9c86; border-color: #b6e6da; }
 .badge-estado.cerrado { background: #f8e8e6; color: #c14a44; border-color: #eec3bf; }
 
-/* ---------- Rejilla del horario ---------------------------------------- */
-.horario-grid { min-width: 420px; }
-.horario-grid th { text-align: center; }
-.horario-grid th:first-child { text-align: left; }
-.horario-grid td {
-  text-align: center; font-weight: 500;
-  border: 1px solid var(--borde); border-radius: 4px;
-  padding: 10px 8px; background-clip: padding-box;
+/* ---------- Agenda del horario (lista por día, no cuadrícula) --------- */
+.agenda-horario { display: flex; flex-direction: column; gap: 8px; }
+.agenda-dia {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 10px 14px; border: 1px solid var(--borde); border-radius: var(--r-md);
+  transition: background var(--paso), border-color var(--paso);
 }
-.horario-grid td.franja {
-  background: var(--paper); text-align: left; white-space: nowrap;
-  font-family: var(--f-mono); font-size: .76rem; color: var(--tinta);
+.agenda-dia.hoy { background: var(--teal-soft); border-color: var(--teal); }
+.agenda-dia__nombre {
+  font-family: var(--f-mono); font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; font-size: .78rem; color: var(--teal-ink); min-width: 88px;
 }
-.horario-grid tbody tr:hover { background: none; }
+.agenda-dia__etiqueta {
+  display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: var(--r-pill);
+  background: var(--teal); color: #fff; font-size: .64rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.agenda-dia__rangos { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+.pill-hora {
+  display: inline-flex; align-items: center;
+  padding: 4px 12px; border-radius: var(--r-pill);
+  font-family: var(--f-mono); font-size: .76rem; font-weight: 500;
+}
 
 /* ---------- Editor interactivo de franjas (rejilla clic-y-arrastre) --- */
 .gh-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 10px; }
@@ -607,7 +616,6 @@ main > .card, main > .kpis { animation-delay: .12s; }
 
 @media (max-width: 520px) {
   .barra-abiertas { margin-top: 6px; }
-  .horario-grid { min-width: 340px; }
-  .horario-grid td { padding: 8px 5px; font-size: .85rem; }
-  .horario-grid td.franja { font-size: .68rem; }
+  .agenda-dia { gap: 8px; }
+  .agenda-dia__nombre { min-width: auto; width: 100%; }
 }

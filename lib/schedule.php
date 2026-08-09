@@ -146,8 +146,19 @@ function save_org_schedule(int $orgId, array $data): array {
     return [true, 'Horario guardado.'];
 }
 
+/** Hasta qué hora sigue vigente la apertura manual extendida ("abrir por X
+ *  tiempo"), o null si no hay ninguna activa. Gana sobre horario y excepciones. */
+function org_override_until(array $org, ?string $now = null): ?string {
+    $hasta = trim((string)($org['open_override_until'] ?? ''));
+    if ($hasta === '') return null;
+    $ts = strtotime($now ?? date('Y-m-d H:i:s'));
+    return $ts <= strtotime($hasta) ? $hasta : null;
+}
+
 /** ¿La asociación está atendiendo en este momento? */
 function is_org_open_now(array $org, ?array $schedule = null, ?string $now = null): bool {
+    if (org_override_until($org, $now) !== null) return true;
+
     $ts    = strtotime($now ?? date('Y-m-d H:i:s'));
     $hoy   = date('Y-m-d', $ts);
     $dia   = (int)date('N', $ts);
@@ -273,4 +284,45 @@ function render_open_orgs_pill(): string {
          .   $grupoCerradas
          . "</div>"
          . "</details>";
+}
+
+/**
+ * Agenda por día de las franjas de un horario (reemplaza la cuadrícula
+ * hora×día): un renglón por día usado, con sus rangos horarios como
+ * "pills". El día de hoy se resalta para que se ubique sin cruzar tabla.
+ */
+function render_schedule_agenda(array $slots, string $colorFondo, string $colorTexto): string {
+    if (!$slots) return '';
+    $dias = horario_dias();
+    $hoy  = (int)date('N');
+
+    // Agrupa los rangos por día, ordenados por hora de inicio dentro del día.
+    $porDia = [];
+    foreach ($slots as $s) {
+        $ini = (string)($s['start'] ?? '');
+        $fin = (string)($s['end'] ?? '');
+        foreach ((array)($s['days'] ?? []) as $d) {
+            $d = (int)$d;
+            if ($d >= 1 && $d <= 7) $porDia[$d][] = ['ini' => $ini, 'fin' => $fin];
+        }
+    }
+    ksort($porDia);
+
+    $html = '<div class="agenda-horario">';
+    foreach ($porDia as $d => $rangos) {
+        usort($rangos, function ($a, $b) { return strcmp($a['ini'], $b['ini']); });
+        $esHoy = $d === $hoy;
+        $pills = '';
+        foreach ($rangos as $r) {
+            $pills .= '<span class="pill-hora" style="background:' . e($colorFondo) . ';color:' . e($colorTexto) . '">'
+                    . e($r['ini']) . '–' . e($r['fin']) . '</span>';
+        }
+        $html .= '<div class="agenda-dia' . ($esHoy ? ' hoy' : '') . '">'
+                . '<span class="agenda-dia__nombre">' . e($dias[$d])
+                .   ($esHoy ? ' <span class="agenda-dia__etiqueta">Hoy</span>' : '') . '</span>'
+                . '<span class="agenda-dia__rangos">' . $pills . '</span>'
+                . '</div>';
+    }
+    $html .= '</div>';
+    return $html;
 }

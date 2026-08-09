@@ -243,6 +243,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = "Notificación encolada para $n estudiante(s)."
                  . ($pend > 0 ? " $enVivo enviados ahora; $pend quedaron pendientes: use «Reintentar» en la pestaña Correos." : '');
         }
+
+    } elseif ($a === 'apertura_abrir') {
+        // Whitelist de duraciones: no confiar en el valor crudo del POST.
+        $minutos = (int)($_POST['minutos'] ?? 0);
+        if (!in_array($minutos, [30, 60, 120, 180, 240], true)) {
+            $msg = 'Duración inválida.';
+        } else {
+            $hasta = date('Y-m-d H:i:s', time() + $minutos * 60);
+            $pdo->prepare("UPDATE organizations SET open_override_until = ? WHERE id = ?")->execute([$hasta, $orgId]);
+            $horaTxt = date('H:i', strtotime($hasta));
+            log_activity($orgId, 'apertura', "Apertura extendida hasta las $horaTxt");
+            $ok = true;
+            $msg = "Asociación marcada como abierta hasta las $horaTxt.";
+
+            if (!empty($_POST['notificar'])) {
+                $st = $pdo->prepare("SELECT name, email FROM users WHERE org_id=? AND role='student' AND active=1 AND email IS NOT NULL AND email <> ''");
+                $st->execute([$orgId]);
+                // Mismo presupuesto de envío en vivo que horario_notificar: el resto
+                // queda 'pendiente' y se despacha desde Correos → Reintentar.
+                $inicio = microtime(true);
+                $n = 0; $enVivo = 0;
+                foreach ($st->fetchAll() as $est) {
+                    $aunHayTiempo = (microtime(true) - $inicio) < 20;
+                    queue_email($orgId, $est['email'], 'Apertura especial ahora — ' . $org['name'],
+                                email_apertura_extendida($est['name'], $org['name'], $horaTxt),
+                                $aunHayTiempo);
+                    if ($aunHayTiempo) $enVivo++;
+                    $n++;
+                }
+                $pend = $n - $enVivo;
+                log_activity($orgId, 'apertura', "Apertura extendida notificada a $n estudiante(s)");
+                $msg .= " Notificación encolada para $n estudiante(s)."
+                      . ($pend > 0 ? " $enVivo enviados ahora; $pend quedaron pendientes." : '');
+            }
+        }
+
+    } elseif ($a === 'apertura_cancelar') {
+        $pdo->prepare("UPDATE organizations SET open_override_until = NULL WHERE id = ?")->execute([$orgId]);
+        log_activity($orgId, 'apertura', 'Apertura extendida cancelada');
+        $ok = true; $msg = 'Apertura extendida cancelada.';
     }
 
     flash_set($ok, $msg);
@@ -820,7 +860,7 @@ elseif ($tab === 'horario'):
         <?php foreach ($nombresDias as $n => $d): ?>
           <div class="gh-cell gh-dia"><?= e(mb_substr($d, 0, 3)) ?></div>
         <?php endforeach; ?>
-        <?php for ($hh = 0; $hh <= 23; $hh++): ?>
+        <?php for ($hh = 7; $hh <= 21; $hh++): /* el recinto solo puede abrir 7:00–22:00 */ ?>
           <div class="gh-cell gh-hora"><?= sprintf('%02d:00', $hh) ?></div>
           <?php foreach ($nombresDias as $n => $d): ?>
             <button type="button" class="gh-cell gh-celda" data-dia="<?= (int)$n ?>" data-hora="<?= $hh ?>"
@@ -930,7 +970,7 @@ elseif ($tab === 'horario'):
 
   var btnCopiar = document.getElementById('ghCopiarSemana');
   if (btnCopiar) btnCopiar.addEventListener('click', function () {
-    for (var h = 0; h <= 23; h++) {
+    for (var h = 7; h <= 21; h++) { // el recinto solo puede abrir 7:00–22:00
       var on = estaOn(celdaDe(1, h));
       [2, 3, 4, 5].forEach(function (d) { marcar(celdaDe(d, h), on); });
     }
@@ -953,7 +993,7 @@ elseif ($tab === 'horario'):
     var grupos = {}, orden = [];
     DIAS.forEach(function (d) {
       var horas = [];
-      for (var h = 0; h <= 23; h++) if (estaOn(celdaDe(d, h))) horas.push(h);
+      for (var h = 7; h <= 21; h++) if (estaOn(celdaDe(d, h))) horas.push(h); // 7:00–22:00
       var rangos = [], ini = null, prev = null;
       horas.forEach(function (h) {
         if (ini === null) { ini = h; prev = h; }
@@ -1003,32 +1043,14 @@ elseif ($tab === 'horario'):
 })();
 </script>
 
-<div class="card tabla-scroll">
+<div class="card">
   <h2 style="margin-top:0">Vista previa</h2>
-  <p class="mini">Así se verá el horario para los estudiantes.</p>
-  <table class="tabla horario-grid">
-    <caption style="caption-side:top; text-align:left; font-weight:700; padding:6px 0"><?= e((string)($h['title'] ?? '')) ?></caption>
-    <tr>
-      <th>Hora</th>
-      <?php foreach ($nombresDias as $d): ?><th><?= e($d) ?></th><?php endforeach; ?>
-    </tr>
-    <?php if (!$slots): ?>
-      <tr><td colspan="8" class="mini">Agregue franjas para ver la vista previa.</td></tr>
-    <?php endif; ?>
-    <?php foreach ($slots as $sl):
-        $sDays = array_map('intval', (array)($sl['days'] ?? [])); ?>
-    <tr>
-      <td><?= e((string)($sl['start'] ?? '')) ?>–<?= e((string)($sl['end'] ?? '')) ?></td>
-      <?php foreach ($nombresDias as $n => $d): ?>
-        <?php if (in_array((int)$n, $sDays, true)): ?>
-          <td style="background:<?= e($colFondo) ?>; color:<?= e($colTexto) ?>; text-align:center; font-weight:700">Atención</td>
-        <?php else: ?>
-          <td style="text-align:center; opacity:.4">—</td>
-        <?php endif; ?>
-      <?php endforeach; ?>
-    </tr>
-    <?php endforeach; ?>
-  </table>
+  <p class="mini">Así se verá el horario para los estudiantes<?= $h['title'] !== '' ? ': «' . e((string)$h['title']) . '»' : '' ?>.</p>
+  <?php if (!$slots): ?>
+    <p class="mini">Agregue franjas para ver la vista previa.</p>
+  <?php else: ?>
+    <?= render_schedule_agenda($slots, $colFondo, $colTexto) ?>
+  <?php endif; ?>
   <?php if ($excs): ?>
     <p class="mini" style="margin-top:10px"><b>Excepciones:</b>
       <?php $tx = [];
@@ -1052,6 +1074,41 @@ elseif ($tab === 'horario'):
     <button class="btn gris">Notificar cambio de horario</button>
   </form>
   <p class="mini">Se envía el horario ya <b>guardado</b>, no el borrador en edición.</p>
+</div>
+
+<?php $overrideHasta = org_override_until($org); ?>
+<div class="card">
+  <h2 style="margin-top:0">Apertura extendida</h2>
+  <?php if ($overrideHasta !== null): ?>
+    <p>Abierta manualmente hasta las <b><?= e(date('H:i', strtotime($overrideHasta))) ?></b>, sin importar el horario publicado.</p>
+    <form method="post">
+      <?= csrf_field() ?><input type="hidden" name="a" value="apertura_cancelar">
+      <button class="btn gris">Cerrar ahora</button>
+    </form>
+  <?php else: ?>
+    <p class="mini">Para cuando alguien llega a abrir fuera del horario publicado: marca la asociación como abierta por un tiempo, sin tocar el horario guardado.</p>
+    <form method="post">
+      <?= csrf_field() ?><input type="hidden" name="a" value="apertura_abrir">
+      <div class="dos-col">
+        <div>
+          <label>Abrir por</label>
+          <select name="minutos">
+            <option value="30">30 minutos</option>
+            <option value="60" selected>1 hora</option>
+            <option value="120">2 horas</option>
+            <option value="180">3 horas</option>
+            <option value="240">4 horas</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:end">
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400">
+            <input type="checkbox" name="notificar" value="1"> Notificar a estudiantes por correo (<?= $nDestinatarios ?>)
+          </label>
+        </div>
+      </div>
+      <br><button class="btn">Abrir ahora</button>
+    </form>
+  <?php endif; ?>
 </div>
 
 <?php /* ================= CORREOS ================= */

@@ -23,18 +23,6 @@ function horario_fecha_es(string $ymd): string {
 $titulo = ($horario !== null && $horario['title'] !== '') ? $horario['title'] : 'Horario de atención';
 $slots  = ($horario !== null && !empty($horario['slots'])) ? $horario['slots'] : [];
 
-// Solo se muestran las columnas de días que aparecen en al menos una franja.
-$diasUsados = [];
-foreach ($slots as $s) {
-    $sd = (isset($s['days']) && is_array($s['days'])) ? $s['days'] : [];
-    foreach ($sd as $d) {
-        $d = (int)$d;
-        if ($d >= 1 && $d <= 7) $diasUsados[$d] = true;
-    }
-}
-ksort($diasUsados);
-$diasUsados = array_keys($diasUsados);
-
 $colorFondo = $horario !== null ? (string)$horario['primary_color'] : '#F4C430';
 $colorTexto = $horario !== null ? (string)$horario['text_color']    : '#1A1A1A';
 
@@ -46,11 +34,15 @@ page_top('Horario de atención', $u, 'horario');
 <h1><?= e($titulo) ?></h1>
 <p class="sub"><?= e($org['name']) ?></p>
 
+<?php $hastaOverride = org_override_until($org); ?>
 <p>
   <?php if ($abierto): ?>
     <span class="badge-estado abierto">Abierto ahora</span>
   <?php else: ?>
     <span class="badge-estado cerrado">Cerrado ahora</span>
+  <?php endif; ?>
+  <?php if ($hastaOverride !== null): ?>
+    <span class="mini">Apertura especial hasta las <?= e(date('H:i', strtotime($hastaOverride))) ?>.</span>
   <?php endif; ?>
 </p>
 
@@ -72,26 +64,8 @@ page_top('Horario de atención', $u, 'horario');
     </p>
   </div>
 <?php else: ?>
-  <div class="card tabla-scroll">
-    <table class="tabla horario-grid">
-      <tr>
-        <th>Franja</th>
-        <?php foreach ($diasUsados as $d): ?><th><?= e($dias[$d]) ?></th><?php endforeach; ?>
-      </tr>
-      <?php foreach ($slots as $s): ?>
-        <?php $sd = array_map('intval', (isset($s['days']) && is_array($s['days'])) ? $s['days'] : []); ?>
-        <tr>
-          <td class="franja"><?= e((string)($s['start'] ?? '')) ?> – <?= e((string)($s['end'] ?? '')) ?></td>
-          <?php foreach ($diasUsados as $d): ?>
-            <?php if (in_array($d, $sd, true)): ?>
-              <td style="background:<?= e($colorFondo) ?>;color:<?= e($colorTexto) ?>" title="Atención">✓</td>
-            <?php else: ?>
-              <td></td>
-            <?php endif; ?>
-          <?php endforeach; ?>
-        </tr>
-      <?php endforeach; ?>
-    </table>
+  <div class="card">
+    <?= render_schedule_agenda($slots, $colorFondo, $colorTexto) ?>
   </div>
 <?php endif; ?>
 

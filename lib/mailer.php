@@ -173,6 +173,16 @@ function email_reset_password(string $name, string $link): string {
     );
 }
 
+function email_apertura_extendida(string $name, string $orgName, string $hastaHora): string {
+    return email_layout(
+        'ABIERTA AHORA', '#0e9c86', '#d7f2ec',
+        $name, 'Tu asociación abrió fuera de su horario habitual.',
+        [['Asociación', $orgName], ['Abierta hasta', $hastaHora]],
+        '#0e9c86', '#d7f2ec',
+        "<strong style='color:#0e9c86;'>Aprovecha:</strong> la pulpería está abierta ahora mismo y estará disponible hasta las <strong>$hastaHora</strong>."
+    );
+}
+
 function email_horario_actualizado(string $name, string $orgName, string $title, string $resumen): string {
     // $noteHtml se inserta sin escapar, así que el resumen se pasa por _email_esc().
     $safeResumen = _email_esc($resumen);
