@@ -258,11 +258,15 @@ function try_reserve(array $u, array $org, int $roomId, int $startHour, int $nBl
     }
 
     // Crear reserva + bloques en una transacción; el índice único evita choques simultáneos.
+    $nowStr = date('Y-m-d H:i:s');
+    // Si la asociación no exige confirmar llegada, la reserva nace ya confirmada
+    // (así el resto de la lógica de no-show, que solo mira checked_in_at, no necesita tocarse).
+    $checkinAuto = $org['require_checkin'] ? null : $nowStr;
     try {
         $pdo->beginTransaction();
-        $pdo->prepare("INSERT INTO reservations (org_id, room_id, user_id, rdate, start_hour, end_hour, status, created_at)
-                       VALUES (?,?,?,?,?,?,'activa',?)")
-            ->execute([(int)$org['id'], $roomId, (int)$u['id'], $date, $startHour, $endHour, date('Y-m-d H:i:s')]);
+        $pdo->prepare("INSERT INTO reservations (org_id, room_id, user_id, rdate, start_hour, end_hour, status, created_at, checked_in_at)
+                       VALUES (?,?,?,?,?,?,'activa',?,?)")
+            ->execute([(int)$org['id'], $roomId, (int)$u['id'], $date, $startHour, $endHour, $nowStr, $checkinAuto]);
         $resId = (int)$pdo->lastInsertId();
         $ins = $pdo->prepare("INSERT INTO reservation_blocks (room_id, rdate, hour, reservation_id) VALUES (?,?,?,?)");
         for ($h = $startHour; $h < $endHour; $h++) $ins->execute([$roomId, $date, $h, $resId]);
@@ -277,7 +281,7 @@ function try_reserve(array $u, array $org, int $roomId, int $startHour, int $nBl
     if ($u['email']) queue_email((int)$org['id'], $u['email'],
         'MiSalaUCR — Reserva confirmada',
         email_reserva_confirmada($u['name'], $room['name'], date('d/m/Y', strtotime($date)),
-            $startHour, $endHour, (int)$org['checkin_minutes']));
+            $startHour, $endHour, (int)$org['checkin_minutes'], (bool)$org['require_checkin']));
 
     return [true, "Reserva confirmada: {$room['name']}, $startHour:00–$endHour:00."];
 }
@@ -478,11 +482,13 @@ function promote_waitlist(int $roomId, string $rdate, int $startHour): void {
         $st->execute(array_merge([$roomId, $rdate], range($startHour, $endHour - 1)));
         if ((int)$st->fetch()['c'] > 0) continue;
 
+        $nowStr = date('Y-m-d H:i:s');
+        $checkinAuto = $org['require_checkin'] ? null : $nowStr;
         try {
             $pdo->beginTransaction();
-            $pdo->prepare("INSERT INTO reservations (org_id, room_id, user_id, rdate, start_hour, end_hour, status, created_at)
-                           VALUES (?,?,?,?,?,?,'activa',?)")
-                ->execute([(int)$org['id'], $roomId, (int)$cu['id'], $rdate, $startHour, $endHour, date('Y-m-d H:i:s')]);
+            $pdo->prepare("INSERT INTO reservations (org_id, room_id, user_id, rdate, start_hour, end_hour, status, created_at, checked_in_at)
+                           VALUES (?,?,?,?,?,?,'activa',?,?)")
+                ->execute([(int)$org['id'], $roomId, (int)$cu['id'], $rdate, $startHour, $endHour, $nowStr, $checkinAuto]);
             $resId = (int)$pdo->lastInsertId();
             $ins = $pdo->prepare("INSERT INTO reservation_blocks (room_id, rdate, hour, reservation_id) VALUES (?,?,?,?)");
             for ($h = $startHour; $h < $endHour; $h++) $ins->execute([$roomId, $rdate, $h, $resId]);
@@ -495,11 +501,14 @@ function promote_waitlist(int $roomId, string $rdate, int $startHour): void {
 
         log_activity((int)$org['id'], 'asignacion',
             "Fila de espera: se asignó {$room['name']} $startHour:00–$endHour:00 a {$cu['name']}");
+        $notaCheckin = $org['require_checkin']
+            ? "Recuerda confirmar tu llegada en la app durante los primeros {$org['checkin_minutes']} minutos, o el espacio se liberará de nuevo."
+            : "Tu reserva ya queda confirmada; esta asociación no requiere confirmar llegada en la app.";
         if ($cu['email']) queue_email((int)$org['id'], $cu['email'],
             'MiSalaUCR — ¡Se liberó tu espacio!',
             "Hola {$cu['name']}:\n\n¡Buenas noticias! Se liberó el bloque que esperabas y la reserva ya quedó a tu nombre:\n\n" .
             "Sala: {$room['name']}\nFecha: " . date('d/m/Y', strtotime($rdate)) . "\nHorario: $startHour:00 a $endHour:00\n\n" .
-            "Recuerda confirmar tu llegada en la app durante los primeros {$org['checkin_minutes']} minutos, o el espacio se liberará de nuevo.");
+            $notaCheckin);
         return;
     }
 }

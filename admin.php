@@ -87,6 +87,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ->execute([(int)$_POST['id'], $orgId]);
         $ok = true; $msg = 'Bloqueo levantado y contador de inasistencias reiniciado.';
 
+    } elseif ($a === 'est_noshow_set') {
+        $id = (int)$_POST['id'];
+        $valor = max(0, (int)($_POST['valor'] ?? 0));
+        if ($valor < (int)$org['noshow_limit']) {
+            $pdo->prepare("UPDATE users SET noshow_count=?, blocked_until=NULL WHERE id=? AND org_id=? AND role='student'")
+                ->execute([$valor, $id, $orgId]);
+        } else {
+            $pdo->prepare("UPDATE users SET noshow_count=? WHERE id=? AND org_id=? AND role='student'")
+                ->execute([$valor, $id, $orgId]);
+        }
+        $ok = true; $msg = "Contador de inasistencias actualizado a $valor.";
+
     } elseif ($a === 'correo_prueba') {
         $dest = trim($_POST['destino'] ?? '');
         if (!filter_var($dest, FILTER_VALIDATE_EMAIL)) { $msg = 'Escriba un correo de destino válido.'; }
@@ -126,13 +138,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($campos as $c) $vals[] = (int)$_POST[$c];
         $horizon = in_array($_POST['booking_horizon'] ?? '', ['mismo_dia','dia_siguiente','semana'], true) ? $_POST['booking_horizon'] : 'mismo_dia';
         $dias = implode(',', array_map('intval', $_POST['dias'] ?? []));
+        $requireCheckin = isset($_POST['require_checkin']) ? 1 : 0;
         if ((int)$_POST['open_hour'] >= (int)$_POST['close_hour']) { $msg = 'La hora de apertura debe ser menor que la de cierre.'; }
         elseif ($dias === '') { $msg = 'Seleccione al menos un día de operación.'; }
         else {
-            $vals[] = $horizon; $vals[] = $dias; $vals[] = $orgId;
+            $vals[] = $horizon; $vals[] = $dias; $vals[] = $requireCheckin; $vals[] = $orgId;
             $pdo->prepare("UPDATE organizations SET open_hour=?, close_hour=?, max_blocks_session=?, max_hours_week=?,
                            week_start=?, checkin_minutes=?, noshow_limit=?, noshow_block_days=?, booking_release_hour=?,
-                           booking_horizon=?, days_open=? WHERE id=?")
+                           booking_horizon=?, days_open=?, require_checkin=? WHERE id=?")
                 ->execute($vals);
             $ok = true; $msg = 'Configuración guardada.';
         }
@@ -531,7 +544,15 @@ elseif ($tab === 'estudiantes'):
       <td><?= e($s['carne']) ?></td>
       <td><?= e($s['email']) ?></td>
       <td><?= e($s['phone'] ?? '') ?></td>
-      <td><?= (int)$s['noshow_count'] ?><?= $bloq ? ' · <span class="pill no_show">bloqueado hasta ' . e(date('d/m H:i', strtotime($s['blocked_until']))) . '</span>' : '' ?></td>
+      <td>
+        <form class="inline" method="post" style="display:flex; gap:4px; align-items:center"
+              onsubmit="return confirm('¿Ajustar el contador de inasistencias de <?= e($s['name']) ?>?')">
+          <?= csrf_field() ?><input type="hidden" name="a" value="est_noshow_set"><input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
+          <input type="number" name="valor" min="0" max="99" value="<?= (int)$s['noshow_count'] ?>" style="width:52px">
+          <button class="btn gris chico">Guardar</button>
+        </form>
+        <?= $bloq ? '<span class="pill no_show">bloqueado hasta ' . e(date('d/m H:i', strtotime($s['blocked_until']))) . '</span>' : '' ?>
+      </td>
       <td><span class="pill <?= $s['active'] ? 'activa' : 'cancelada' ?>"><?= $s['active'] ? 'activa' : 'inactiva' ?></span></td>
       <td style="white-space:nowrap">
         <a class="btn gris chico" href="admin.php?tab=estudiantes&editar=<?= (int)$s['id'] ?>">Editar</a>
@@ -798,6 +819,9 @@ elseif ($tab === 'config'):
           <input type="checkbox" name="dias[]" value="<?= $n ?>" style="width:auto" <?= in_array((string)$n, $diasSel) ? 'checked' : '' ?>> <?= $d ?></label>
       <?php endforeach; ?>
     </div>
+    <label style="display:flex; gap:6px; align-items:center; font-weight:400; margin-top:12px">
+      <input type="checkbox" name="require_checkin" style="width:auto" <?= $org['require_checkin'] ? 'checked' : '' ?>>
+      Exigir confirmar llegada (check-in) para no contar como inasistencia</label>
     <br><button class="btn">Guardar configuración</button>
   </form>
 </div>

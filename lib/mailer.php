@@ -139,13 +139,15 @@ $noteHtml
 </body></html>";
 }
 
-function email_reserva_confirmada(string $name, string $roomName, string $dateStr, int $startHour, int $endHour, int $checkinMinutes): string {
+function email_reserva_confirmada(string $name, string $roomName, string $dateStr, int $startHour, int $endHour, int $checkinMinutes, bool $requireCheckin = true): string {
+    $nota = $requireCheckin
+        ? "<strong style='color:#0d7f8f;'>Recuerda:</strong> al iniciar tu bloque tendrás <strong>{$checkinMinutes} minutos</strong> para confirmar tu llegada en la app. Si no lo haces, el espacio se libera y cuenta como inasistencia."
+        : "Tu reserva ya queda confirmada; esta asociación no requiere confirmar llegada en la app.";
     return email_layout(
         'RESERVA CONFIRMADA', '#0e9c86', '#d7f2ec',
         $name, 'Tu espacio de estudio quedó reservado. Aquí el detalle:',
         [['Sala', $roomName], ['Fecha', $dateStr], ['Horario', sprintf('%d:00 – %d:00', $startHour, $endHour)]],
-        '#0d7f8f', '#e2f6f9',
-        "<strong style='color:#0d7f8f;'>Recuerda:</strong> al iniciar tu bloque tendrás <strong>{$checkinMinutes} minutos</strong> para confirmar tu llegada en la app. Si no lo haces, el espacio se libera y cuenta como inasistencia."
+        '#0d7f8f', '#e2f6f9', $nota
     );
 }
 

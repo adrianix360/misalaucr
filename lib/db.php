@@ -202,7 +202,9 @@ function db_init(PDO $pdo, string $driver): void {
               "ALTER TABLE organizations ADD COLUMN booking_horizon VARCHAR(12) NOT NULL DEFAULT 'mismo_dia'",
               "ALTER TABLE organizations ADD COLUMN booking_release_hour INT NULL",
               // Apertura manual extendida ("abrir por X tiempo" fuera del horario publicado).
-              "ALTER TABLE organizations ADD COLUMN open_override_until VARCHAR(19) NULL"] as $sql) {
+              "ALTER TABLE organizations ADD COLUMN open_override_until VARCHAR(19) NULL",
+              // Confirmar llegada (check-in) opcional por asociación; 1 = comportamiento actual.
+              "ALTER TABLE organizations ADD COLUMN require_checkin TINYINT NOT NULL DEFAULT 1"] as $sql) {
         try { $pdo->exec($sql); } catch (PDOException $e) { /* la columna ya existe */ }
     }
 

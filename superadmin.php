@@ -91,6 +91,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                            $_POST['email'] ?? '', $_POST['telefono'] ?? '', $_POST['password'] ?? '');
         }
 
+    } elseif ($a === 'est_noshow_set_su') {
+        $id = (int)$_POST['id'];
+        $valor = max(0, (int)($_POST['valor'] ?? 0));
+        $st = $pdo->prepare("SELECT u.*, o.noshow_limit FROM users u JOIN organizations o ON o.id = u.org_id
+                             WHERE u.id=? AND u.role='student'");
+        $st->execute([$id]);
+        $s = $st->fetch();
+        if (!$s) { $msg = 'Estudiante no encontrado.'; }
+        else {
+            if ($valor < (int)$s['noshow_limit']) {
+                $pdo->prepare("UPDATE users SET noshow_count=?, blocked_until=NULL WHERE id=?")->execute([$valor, $id]);
+            } else {
+                $pdo->prepare("UPDATE users SET noshow_count=? WHERE id=?")->execute([$valor, $id]);
+            }
+            $ok = true; $msg = "Contador de inasistencias de {$s['name']} actualizado a $valor.";
+        }
+
     } elseif ($a === 'est_mover') {
         $id = (int)$_POST['id'];
         $dest = (int)$_POST['org_id'];
@@ -345,13 +362,22 @@ elseif ($tab === 'estudiantes'):
 <?php if ($q !== ''): ?>
 <div class="card tabla-scroll">
 <table class="tabla">
-  <tr><th>Nombre</th><th>Carné</th><th>Organización actual</th><th>Estado</th><th>Mover a</th></tr>
-  <?php if (!$ests): ?><tr><td colspan="5" class="mini">Sin resultados para "<?= e($q) ?>".</td></tr><?php endif; ?>
+  <tr><th>Nombre</th><th>Carné</th><th>Organización actual</th><th>No-shows</th><th>Estado</th><th>Mover a</th></tr>
+  <?php if (!$ests): ?><tr><td colspan="6" class="mini">Sin resultados para "<?= e($q) ?>".</td></tr><?php endif; ?>
   <?php foreach ($ests as $s): ?>
   <tr>
     <td><?= e($s['name']) ?></td>
     <td><?= e($s['carne']) ?></td>
     <td><?= e($s['org_name']) ?></td>
+    <td>
+      <form class="inline" method="post" style="display:flex; gap:4px; align-items:center"
+            onsubmit="return confirm('¿Ajustar el contador de inasistencias de <?= e($s['name']) ?>?')">
+        <?= csrf_field() ?><input type="hidden" name="a" value="est_noshow_set_su"><input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
+        <input type="number" name="valor" min="0" max="99" value="<?= (int)$s['noshow_count'] ?>" style="width:52px">
+        <button class="btn gris chico">Guardar</button>
+      </form>
+      <?= $s['blocked_until'] && $s['blocked_until'] > date('Y-m-d H:i:s') ? '<span class="pill no_show">bloqueado</span>' : '' ?>
+    </td>
     <td><span class="pill <?= $s['active'] ? 'activa' : 'cancelada' ?>"><?= $s['active'] ? 'activa' : 'inactiva' ?></span></td>
     <td>
       <form class="inline" method="post" style="display:flex; gap:6px"
