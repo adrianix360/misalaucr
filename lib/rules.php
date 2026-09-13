@@ -230,10 +230,9 @@ function try_reserve(array $u, array $org, int $roomId, int $startHour, int $nBl
         return [false, 'Horario fuera del rango operativo.'];
     }
 
-    // Si es hoy, el bloque no debe haber vencido ya
-    // (se permite tomar el bloque en curso durante sus primeros minutos de check-in).
-    $graceEnd = strtotime(dt($date, $startHour)) + 60 * (int)$org['checkin_minutes'];
-    if ($now >= $graceEnd) return [false, 'Ese bloque ya pasó. Elige un bloque más tarde.'];
+    // Si es hoy, el bloque no debe haber terminado ya
+    // (se permite tomar el bloque en curso mientras dure, no solo al inicio).
+    if ($now >= strtotime(dt($date, $endHour))) return [false, 'Ese bloque ya pasó. Elige un bloque más tarde.'];
 
     // Sala disponible y de la misma organización
     $st = $pdo->prepare("SELECT * FROM rooms WHERE id = ? AND org_id = ?");
@@ -379,7 +378,7 @@ function join_waitlist(array $u, array $org, int $roomId, int $startHour, int $n
     if ($startHour < (int)$org['open_hour'] || $endHour > (int)$org['close_hour']) {
         return [false, 'Horario fuera del rango operativo.'];
     }
-    if ($now >= strtotime(dt($date, $startHour)) + 60 * (int)$org['checkin_minutes']) {
+    if ($now >= strtotime(dt($date, $endHour))) {
         return [false, 'Ese bloque ya pasó.'];
     }
 

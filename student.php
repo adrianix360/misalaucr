@@ -189,7 +189,7 @@ if ($activas): ?>
       <div class="hora"><?= $h ?>:00</div>
       <?php foreach ($rooms as $r):
         $rid = (int)$r['id'];
-        $vencido = $ahora >= strtotime(dt($fecha, $h)) + 60 * (int)$org['checkin_minutes'];
+        $vencido = $ahora >= strtotime(dt($fecha, $h + 1));
         if ($r['status'] !== 'disponible') {
             echo '<span class="blk cerrado">Mant.</span>';
         } elseif (isset($blackouts[$rid][$h])) {
