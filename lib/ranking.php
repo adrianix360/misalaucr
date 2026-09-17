@@ -235,18 +235,33 @@ function ranking_csv_celda(?string $v): string {
 }
 
 /**
- * Avatar del estudiante para el podio y las listas: círculo con iniciales.
- * $px es el diámetro en píxeles. Cuando existan las fotos de perfil, este es el
- * ÚNICO punto que cambia — todas las vistas lo consumen a través de aquí.
+ * Avatar del estudiante para el podio y las listas: su foto si la tiene, y si no
+ * un círculo con las iniciales. $px es el diámetro en píxeles.
  *
- * Va marcado aria-hidden porque el nombre siempre aparece como texto al lado:
- * un lector de pantalla que leyera también las iniciales lo diría dos veces.
+ * Todas las vistas (podio, lista, insignia y tabla del panel) pasan por aquí, así
+ * que la foto aparece en las cuatro sin tocar ninguna.
+ *
+ * Va marcado aria-hidden porque el nombre siempre aparece como texto al lado: un
+ * lector de pantalla que leyera también las iniciales lo diría dos veces.
  */
 function ranking_avatar(array $f, int $px = 56): string {
     $color = (string)($f['color'] ?? '#123a5e');
     if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) $color = '#123a5e';
-    $estilo = sprintf('width:%dpx;height:%dpx;font-size:%dpx;background:%s',
-        $px, $px, max(11, (int)round($px * 0.38)), $color);
+    $caja = sprintf('width:%dpx;height:%dpx', $px, $px);
+
+    if (!empty($f['tiene_foto']) && !empty($f['user_id'])) {
+        // El parámetro v hace de cache-buster: sin él, una foto nueva tardaría
+        // hasta un día en verse por el max-age que manda foto.php.
+        $v = isset($f['foto_ts']) ? (int)strtotime((string)$f['foto_ts']) : 0;
+        // loading=lazy importa en la tabla del panel: con cientos de estudiantes,
+        // cada avatar es un request a foto.php y el navegador solo pide los que se ven.
+        return '<img class="msu-avatar" src="foto.php?u=' . (int)$f['user_id'] . '&amp;v=' . $v . '"'
+             . ' alt="" aria-hidden="true" loading="lazy"'
+             . ' width="' . $px . '" height="' . $px . '"'
+             . ' style="' . $caja . ';background:' . $color . '">';
+    }
+
+    $estilo = $caja . sprintf(';font-size:%dpx;background:%s', max(11, (int)round($px * 0.38)), $color);
     return '<span class="msu-avatar" aria-hidden="true" style="' . $estilo . '">'
          . htmlspecialchars((string)($f['iniciales'] ?? '?'), ENT_QUOTES, 'UTF-8')
          . '</span>';

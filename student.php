@@ -366,12 +366,13 @@ if ($activas): ?>
   <div class="perfil-podio">
     <p class="mini"><b>Tu foto.</b> Aparece junto a tu nombre en el podio que ve tu asociación. Es opcional.</p>
     <div class="perfil-foto">
-      <?php if ($miFotoTs !== null): ?>
-        <img class="msu-avatar" src="foto.php?u=<?= (int)$u['id'] ?>&amp;v=<?= (int)strtotime($miFotoTs) ?>"
-             alt="Tu foto de perfil" width="64" height="64" style="width:64px;height:64px">
-      <?php else: ?>
-        <?= ranking_avatar(['iniciales' => ranking_iniciales($u['name']), 'color' => ranking_color($u['name'])], 64) ?>
-      <?php endif; ?>
+      <?= ranking_avatar([
+            'tiene_foto' => $miFotoTs !== null,
+            'user_id'    => (int)$u['id'],
+            'foto_ts'    => $miFotoTs,
+            'iniciales'  => ranking_iniciales($u['name']),
+            'color'      => ranking_color($u['name']),
+          ], 64) ?>
       <div style="flex:1">
         <form method="post" enctype="multipart/form-data">
           <?= csrf_field() ?><input type="hidden" name="a" value="foto_subir">
