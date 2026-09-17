@@ -2,6 +2,7 @@
 require_once __DIR__ . '/lib/auth.php';
 require_once __DIR__ . '/lib/rules.php';
 require_once __DIR__ . '/lib/layout.php';
+require_once __DIR__ . '/lib/ranking.php';
 
 $u = require_role(['student']);
 $org = org_of($u);
@@ -31,6 +32,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->prepare("UPDATE users SET phone = ? WHERE id = ?")->execute([$tel ?: null, (int)$u['id']]);
             $ok = true; $msg = tema_txt($tema, 'perfil_ok', 'Perfil actualizado.');
         }
+    } elseif ($a === 'ranking_visibilidad') {
+        // Solo toca ranking_opt_out (decisión del estudiante). ranking_excluded
+        // es del admin y se deja intacta a propósito: si el admin ocultó a
+        // alguien, el estudiante no puede revertirlo desde aquí.
+        $oculto = ($_POST['oculto'] ?? '') === '1' ? 1 : 0;
+        db()->prepare("UPDATE users SET ranking_opt_out = ? WHERE id = ?")->execute([$oculto, (int)$u['id']]);
+        $ok = true;
+        $msg = $oculto
+            ? 'Listo: ya no aparecés en el podio de tu asociación.'
+            : 'Listo: volvés a aparecer en el podio de tu asociación.';
     } else { $ok = false; $msg = 'Acción desconocida.'; }
     flash_set($ok, $msg);
     header('Location: student.php' . (!empty($_POST['fecha']) ? '?fecha=' . urlencode($_POST['fecha']) : '')); exit;
@@ -115,6 +126,39 @@ $saludo = sprintf(tema_txt($tema, 'saludo', 'Hola, %s 👋'), $primerNombre);
   <b><?= $rest ?>h</b>
   <div><?= e(tema_txt($tema, 'saldo', 'te quedan disponibles esta semana')) ?> <span class="mini">(máx. <?= (int)$org['max_hours_week'] ?>h por semana, <?= (int)$org['max_blocks_session'] ?>h por sesión)</span></div>
 </div>
+
+<?php /* --- insignia del podio mensual (solo si la asociación lo activó) --- */
+if (ranking_activo($org)):
+    [$rkDesde, $rkHasta, $rkEtiqueta] = ranking_periodo();
+    $rkFilas = ranking_org((int)$org['id'], $rkDesde, $rkHasta);
+    $rkVis   = ranking_visibles($rkFilas);
+    $rkYo    = ranking_mi_fila((int)$u['id'], $rkFilas);
+
+    $rkMiVis = null;
+    foreach ($rkVis as $v) if ((int)$v['user_id'] === (int)$u['id']) { $rkMiVis = $v; break; }
+?>
+<a class="rank-insignia" href="ranking.php">
+  <?php if (!$rkYo): ?>
+    <span class="txt">Reservá tu primera hora y entrás al podio de <?= e($rkEtiqueta) ?>.</span>
+  <?php else:
+      $rkFaltan = ranking_faltan_para_subir($rkFilas, (int)$u['id']);
+      $rkPos    = $rkMiVis ? (int)$rkMiVis['posicion_publica'] : (int)$rkYo['posicion'];
+      $rkTotal  = $rkMiVis ? count($rkVis) : count($rkFilas);
+  ?>
+    <?= ranking_avatar($rkYo, 38) ?>
+    <span class="txt">
+      <b>Vas #<?= $rkPos ?> de <?= $rkTotal ?></b> en <?= e($rkEtiqueta) ?> · <?= (int)$rkYo['horas'] ?>h
+      <?php if ($rkFaltan): ?>
+        <span class="gancho"><?= (int)$rkFaltan['horas'] ?>h más y alcanzás el #<?= (int)$rkFaltan['posicion'] ?></span>
+      <?php else: ?>
+        <span class="gancho">Vas de primero 👑</span>
+      <?php endif; ?>
+      <?php if (!$rkMiVis): ?><span class="gancho oculto">Oculto del podio</span><?php endif; ?>
+    </span>
+  <?php endif; ?>
+  <span class="ir" aria-hidden="true">›</span>
+</a>
+<?php endif; ?>
 
 <?php
 /* --- mis reservas activas de hoy: check-in / cancelar --- */
@@ -301,6 +345,30 @@ if ($activas): ?>
     </div>
     <button class="btn gris chico" style="margin-bottom:2px">Guardar</button>
   </form>
+  <?php if (ranking_activo($org)):
+      $rkOptOut   = (int)($u['ranking_opt_out'] ?? 0) === 1;
+      $rkExcluido = (int)($u['ranking_excluded'] ?? 0) === 1;
+  ?>
+  <div class="perfil-podio">
+    <p class="mini">
+      <b>Podio de la asociación.</b>
+      <?php if ($rkOptOut): ?>
+        Ahora mismo estás oculto: nadie más ve tu nombre en el podio, pero vos seguís viendo tu posición.
+      <?php else: ?>
+        Tu nombre y tus horas aparecen en el podio que ve tu asociación.
+      <?php endif; ?>
+    </p>
+    <?php if ($rkExcluido): ?>
+      <p class="mini">Tu asociación ocultó tu perfil del podio, así que no vas a aparecer aunque te muestres acá.</p>
+    <?php endif; ?>
+    <form method="post">
+      <?= csrf_field() ?>
+      <input type="hidden" name="a" value="ranking_visibilidad">
+      <input type="hidden" name="oculto" value="<?= $rkOptOut ? '0' : '1' ?>">
+      <button class="btn gris chico"><?= $rkOptOut ? 'Mostrarme en el podio' : 'Ocultarme del podio' ?></button>
+    </form>
+  </div>
+  <?php endif; ?>
 </div>
 
 <script>setTimeout(() => location.replace('student.php'), 60000);</script>
