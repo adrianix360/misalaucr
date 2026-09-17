@@ -712,3 +712,8 @@ main > .card, main > .kpis { animation-delay: .12s; }
 @media (max-width: 420px) {
   .rank-insignia .gancho { display: block; margin: 5px 0 0; }
 }
+
+/* ---------- Foto de perfil ---------------------------------------------- */
+.perfil-foto { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
+.perfil-foto input[type=file] { font-size: .82rem; max-width: 100%; }
+.perfil-foto img.msu-avatar { object-fit: cover; }

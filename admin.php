@@ -4,6 +4,7 @@ require_once __DIR__ . '/lib/rules.php';
 require_once __DIR__ . '/lib/layout.php';
 require_once __DIR__ . '/lib/schedule.php';
 require_once __DIR__ . '/lib/ranking.php';
+require_once __DIR__ . '/lib/foto.php';
 
 $u = require_role(['admin']);
 $org = org_of($u);
@@ -307,6 +308,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ? 'Podio activado: los estudiantes ya lo ven en su menú.'
             : 'Podio desactivado: deja de verse de inmediato.';
 
+    } elseif ($a === 'foto_quitar_admin') {
+        // Moderación: la asociación quita una foto inapropiada. No toca el
+        // ranking ni las reservas del estudiante, solo borra la imagen.
+        $sid = (int)($_POST['est_id'] ?? 0);
+        $st = $pdo->prepare("SELECT id, name FROM users WHERE id = ? AND org_id = ? AND role = 'student'");
+        $st->execute([$sid, $orgId]);
+        $est = $st->fetch();
+        if (!$est) {
+            $msg = 'Ese estudiante no pertenece a esta asociación.';
+        } else {
+            foto_borrar($sid);
+            log_activity($orgId, 'foto', "Se quitó la foto de perfil de {$est['name']}");
+            $ok = true; $msg = "Se quitó la foto de {$est['name']}.";
+        }
+
     } elseif ($a === 'ranking_estudiante') {
         // Toca SOLO ranking_excluded, la bandera del admin. ranking_opt_out es
         // del estudiante y no se modifica nunca desde aquí: la asociación puede
@@ -532,10 +548,14 @@ if ($tab === 'reservas'):
 <?php /* ================= ESTUDIANTES ================= */
 elseif ($tab === 'estudiantes'):
     $q = trim($_GET['q'] ?? '');
-    $sql = "SELECT * FROM users WHERE org_id=? AND role='student'";
+    // El LEFT JOIN trae solo la fecha de la foto, nunca los bytes: sirve para
+    // saber a quién ofrecerle el botón de quitarla.
+    $sql = "SELECT u.*, p.updated_at AS foto_ts
+            FROM users u LEFT JOIN user_photos p ON p.user_id = u.id
+            WHERE u.org_id=? AND u.role='student'";
     $par = [$orgId];
-    if ($q !== '') { $sql .= " AND (name LIKE ? OR carne LIKE ? OR email LIKE ?)"; array_push($par, "%$q%", "%$q%", "%$q%"); }
-    $sql .= " ORDER BY name";
+    if ($q !== '') { $sql .= " AND (u.name LIKE ? OR u.carne LIKE ? OR u.email LIKE ?)"; array_push($par, "%$q%", "%$q%", "%$q%"); }
+    $sql .= " ORDER BY u.name";
     $st = $pdo->prepare($sql); $st->execute($par); $ests = $st->fetchAll();
     $editar = (int)($_GET['editar'] ?? 0);
     $creados = $_SESSION['csv_creados'] ?? null; unset($_SESSION['csv_creados']);
@@ -628,6 +648,13 @@ elseif ($tab === 'estudiantes'):
         <?php if ($bloq): ?>
         <form class="inline" method="post"><?= csrf_field() ?><input type="hidden" name="a" value="est_desbloquear"><input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
           <button class="btn verde chico">Desbloquear</button></form>
+        <?php endif; ?>
+        <?php if (!empty($s['foto_ts'])): ?>
+        <form class="inline" method="post" onsubmit="return confirm('¿Quitar la foto de perfil de este estudiante?')">
+          <?= csrf_field() ?><input type="hidden" name="a" value="foto_quitar_admin"><input type="hidden" name="est_id" value="<?= (int)$s['id'] ?>">
+          <input type="hidden" name="tab" value="estudiantes">
+          <button class="btn gris chico">Quitar foto</button>
+        </form>
         <?php endif; ?>
         <form class="inline" method="post"><?= csrf_field() ?><input type="hidden" name="a" value="est_toggle"><input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
           <button class="btn <?= $s['active'] ? 'rojo' : 'verde' ?> chico"><?= $s['active'] ? 'Desactivar' : 'Activar' ?></button></form>
@@ -868,6 +895,10 @@ elseif ($tab === 'ranking'):
       ? 'Los estudiantes ven el podio en su menú.'
       : 'Nadie lo ve todavía: ni el enlace ni la insignia aparecen.' ?></span>
   </p>
+  <?php if (!foto_gd_disponible()): ?>
+    <p class="mini">⚠️ Este servidor no tiene activada la librería de imágenes (GD), así que los estudiantes
+    no pueden subir foto de perfil. El podio funciona igual, con las iniciales de cada quien.</p>
+  <?php endif; ?>
   <form method="post">
     <?= csrf_field() ?>
     <input type="hidden" name="a" value="ranking_toggle">
@@ -930,6 +961,15 @@ elseif ($tab === 'ranking'):
         <input type="hidden" name="ocultar" value="<?= $f['excluido'] ? '0' : '1' ?>">
         <input type="hidden" name="mes" value="<?= e($rYm) ?>">
         <button class="btn gris chico"><?= $f['excluido'] ? 'Mostrar' : 'Ocultar' ?></button>
+      </form>
+      <?php endif; ?>
+      <?php if ($f['tiene_foto']): ?>
+      <form method="post" class="inline" onsubmit="return confirm('¿Quitar la foto de perfil de este estudiante?')">
+        <?= csrf_field() ?>
+        <input type="hidden" name="a" value="foto_quitar_admin">
+        <input type="hidden" name="est_id" value="<?= (int)$f['user_id'] ?>">
+        <input type="hidden" name="mes" value="<?= e($rYm) ?>">
+        <button class="btn gris chico">Quitar foto</button>
       </form>
       <?php endif; ?>
     </td>

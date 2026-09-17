@@ -3,6 +3,7 @@ require_once __DIR__ . '/lib/auth.php';
 require_once __DIR__ . '/lib/rules.php';
 require_once __DIR__ . '/lib/layout.php';
 require_once __DIR__ . '/lib/ranking.php';
+require_once __DIR__ . '/lib/foto.php';
 
 $u = require_role(['student']);
 $org = org_of($u);
@@ -12,6 +13,13 @@ process_automatic();
 
 /* --- acciones --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Si el envío supera post_max_size, PHP entrega $_POST y $_FILES vacíos y
+    // csrf_check() fallaría con "Sesión inválida", que no explica nada. Se
+    // detecta antes para poder decir la causa real.
+    if (foto_post_excedido()) {
+        flash_set(false, 'La foto pesa más de lo que acepta el servidor. Probá con una más liviana.');
+        header('Location: student.php'); exit;
+    }
     csrf_check();
     $a = $_POST['a'] ?? '';
     if ($a === 'reservar') {
@@ -32,6 +40,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->prepare("UPDATE users SET phone = ? WHERE id = ?")->execute([$tel ?: null, (int)$u['id']]);
             $ok = true; $msg = tema_txt($tema, 'perfil_ok', 'Perfil actualizado.');
         }
+    } elseif ($a === 'foto_subir') {
+        [$ok, $msg] = foto_subir_de_post((int)$u['id'], $_FILES['foto'] ?? null);
+
+    } elseif ($a === 'foto_quitar') {
+        foto_borrar((int)$u['id']);
+        $ok = true; $msg = 'Quitaste tu foto de perfil.';
+
     } elseif ($a === 'ranking_visibilidad') {
         // Solo toca ranking_opt_out (decisión del estudiante). ranking_excluded
         // es del admin y se deja intacta a propósito: si el admin ocultó a
@@ -345,6 +360,35 @@ if ($activas): ?>
     </div>
     <button class="btn gris chico" style="margin-bottom:2px">Guardar</button>
   </form>
+  <?php if (ranking_activo($org) && foto_gd_disponible()):
+      $miFotoTs = foto_actualizada((int)$u['id']);
+  ?>
+  <div class="perfil-podio">
+    <p class="mini"><b>Tu foto.</b> Aparece junto a tu nombre en el podio que ve tu asociación. Es opcional.</p>
+    <div class="perfil-foto">
+      <?php if ($miFotoTs !== null): ?>
+        <img class="msu-avatar" src="foto.php?u=<?= (int)$u['id'] ?>&amp;v=<?= (int)strtotime($miFotoTs) ?>"
+             alt="Tu foto de perfil" width="64" height="64" style="width:64px;height:64px">
+      <?php else: ?>
+        <?= ranking_avatar(['iniciales' => ranking_iniciales($u['name']), 'color' => ranking_color($u['name'])], 64) ?>
+      <?php endif; ?>
+      <div style="flex:1">
+        <form method="post" enctype="multipart/form-data">
+          <?= csrf_field() ?><input type="hidden" name="a" value="foto_subir">
+          <input type="file" name="foto" accept="image/jpeg,image/png,image/webp" required>
+          <button class="btn gris chico" style="margin-top:8px"><?= $miFotoTs !== null ? 'Cambiar foto' : 'Subir foto' ?></button>
+        </form>
+        <?php if ($miFotoTs !== null): ?>
+        <form method="post" style="margin-top:6px" onsubmit="return confirm('¿Quitar tu foto de perfil?')">
+          <?= csrf_field() ?><input type="hidden" name="a" value="foto_quitar">
+          <button class="btn gris chico">Quitar foto</button>
+        </form>
+        <?php endif; ?>
+      </div>
+    </div>
+    <p class="mini">JPG, PNG o WebP, hasta <?= (int)(FOTO_MAX_BYTES / 1024 / 1024) ?> MB. Se recorta cuadrada automáticamente.</p>
+  </div>
+  <?php endif; ?>
   <?php if (ranking_activo($org)):
       $rkOptOut   = (int)($u['ranking_opt_out'] ?? 0) === 1;
       $rkExcluido = (int)($u['ranking_excluded'] ?? 0) === 1;
