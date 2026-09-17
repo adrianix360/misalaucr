@@ -224,6 +224,17 @@ function ranking_iniciales(string $nombre): string {
 }
 
 /**
+ * Neutraliza la inyección de fórmulas al exportar a CSV: Excel y Google Sheets
+ * interpretan como fórmula cualquier celda que empiece con = + - o @, así que
+ * un nombre malicioso podría ejecutar algo al abrir el archivo. El apóstrofo
+ * inicial la fuerza a texto.
+ */
+function ranking_csv_celda(?string $v): string {
+    $v = (string)$v;
+    return preg_match('/^[=+\-@]/', $v) ? "'" . $v : $v;
+}
+
+/**
  * Avatar del estudiante para el podio y las listas: círculo con iniciales.
  * $px es el diámetro en píxeles. Cuando existan las fotos de perfil, este es el
  * ÚNICO punto que cambia — todas las vistas lo consumen a través de aquí.

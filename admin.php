@@ -3,6 +3,7 @@ require_once __DIR__ . '/lib/auth.php';
 require_once __DIR__ . '/lib/rules.php';
 require_once __DIR__ . '/lib/layout.php';
 require_once __DIR__ . '/lib/schedule.php';
+require_once __DIR__ . '/lib/ranking.php';
 
 $u = require_role(['admin']);
 $org = org_of($u);
@@ -296,10 +297,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare("UPDATE organizations SET open_override_until = NULL WHERE id = ?")->execute([$orgId]);
         log_activity($orgId, 'apertura', 'Apertura extendida cancelada');
         $ok = true; $msg = 'Apertura extendida cancelada.';
+
+    } elseif ($a === 'ranking_toggle') {
+        $on = ($_POST['activar'] ?? '') === '1' ? 1 : 0;
+        $pdo->prepare("UPDATE organizations SET ranking_enabled = ? WHERE id = ?")->execute([$on, $orgId]);
+        log_activity($orgId, 'ranking', $on ? 'Podio activado' : 'Podio desactivado');
+        $ok = true;
+        $msg = $on
+            ? 'Podio activado: los estudiantes ya lo ven en su menú.'
+            : 'Podio desactivado: deja de verse de inmediato.';
+
+    } elseif ($a === 'ranking_estudiante') {
+        // Toca SOLO ranking_excluded, la bandera del admin. ranking_opt_out es
+        // del estudiante y no se modifica nunca desde aquí: la asociación puede
+        // ocultar a alguien, pero no revertir la decisión de quien se ocultó solo.
+        $sid = (int)($_POST['est_id'] ?? 0);
+        $st = $pdo->prepare("SELECT id, name, ranking_opt_out FROM users
+                             WHERE id = ? AND org_id = ? AND role = 'student'");
+        $st->execute([$sid, $orgId]);
+        $est = $st->fetch();
+        if (!$est) {
+            $msg = 'Ese estudiante no pertenece a esta asociación.';
+        } elseif ((int)$est['ranking_opt_out'] === 1) {
+            $msg = 'Ese estudiante se ocultó por decisión propia; solo él puede volver a mostrarse.';
+        } else {
+            $ocultar = ($_POST['ocultar'] ?? '') === '1' ? 1 : 0;
+            $pdo->prepare("UPDATE users SET ranking_excluded = ? WHERE id = ? AND org_id = ?")
+                ->execute([$ocultar, $sid, $orgId]);
+            log_activity($orgId, 'ranking',
+                ($ocultar ? 'Se ocultó del podio a ' : 'Se volvió a mostrar en el podio a ') . $est['name']);
+            $ok = true;
+            $msg = $ocultar
+                ? "{$est['name']} ya no aparece en el podio."
+                : "{$est['name']} vuelve a aparecer en el podio.";
+        }
     }
 
     flash_set($ok, $msg);
-    header('Location: admin.php?tab=' . urlencode($tab) . (isset($_POST['fecha']) ? '&fecha=' . urlencode($_POST['fecha']) : ''));
+    header('Location: admin.php?tab=' . urlencode($tab)
+        . (isset($_POST['fecha']) ? '&fecha=' . urlencode($_POST['fecha']) : '')
+        . (isset($_POST['mes']) ? '&mes=' . urlencode($_POST['mes']) : ''));
+    exit;
+}
+
+/* Exportación del ranking a CSV. Va ANTES de page_top() a propósito: manda sus
+   propias cabeceras, y cualquier HTML impreso antes corrompería el archivo. */
+if (($_GET['export'] ?? '') === 'csv' && $tab === 'ranking') {
+    [$xDesde, $xHasta, , $xYm] = ranking_periodo($_GET['mes'] ?? null);
+    $xFilas = ranking_org($orgId, $xDesde, $xHasta);
+
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="ranking-' . $xYm . '.csv"');
+    // BOM: sin él, Excel en español abre el archivo con las tildes rotas.
+    echo "\xEF\xBB\xBF";
+    $out = fopen('php://output', 'w');
+    // Separador ';' porque el Excel en español espera ese como separador de lista.
+    fputcsv($out, ['Posicion', 'Estudiante', 'Carne', 'Horas', 'Sesiones', 'Completadas',
+                   'No-shows', 'Asistencia %', 'Sala favorita', 'Visible en el podio'], ';');
+    foreach ($xFilas as $f) {
+        fputcsv($out, [
+            (int)$f['posicion'],
+            ranking_csv_celda($f['name']),
+            ranking_csv_celda($f['carne']),
+            (int)$f['horas'],
+            (int)$f['sesiones'],
+            (int)$f['completadas'],
+            (int)$f['noshows'],
+            $f['asistencia'] === null ? '' : (int)$f['asistencia'],
+            ranking_csv_celda($f['fav_room']),
+            $f['oculto'] ? 'no' : 'si',
+        ], ';');
+    }
+    fclose($out);
     exit;
 }
 
@@ -390,7 +459,7 @@ function importar_csv(PDO $pdo, int $orgId): array {
 
 /* ============ VISTA ============ */
 page_top('Panel de administración', $u, 'admin');
-$tabs = ['reservas' => 'Reservas', 'estudiantes' => 'Estudiantes', 'salas' => 'Salas', 'restricciones' => 'Restricciones', 'reportes' => 'Reportes', 'config' => 'Configuración', 'horario' => 'Horario', 'correos' => 'Correos'];
+$tabs = ['reservas' => 'Reservas', 'estudiantes' => 'Estudiantes', 'salas' => 'Salas', 'restricciones' => 'Restricciones', 'reportes' => 'Reportes', 'ranking' => 'Ranking', 'config' => 'Configuración', 'horario' => 'Horario', 'correos' => 'Correos'];
 ?>
 <h1>Panel de administración</h1>
 <p class="sub"><?= e($org['name']) ?></p>
@@ -775,6 +844,103 @@ elseif ($tab === 'reportes'):
     <?php if (!$porEst): ?><tr><td colspan="4" class="mini">Sin datos en el rango.</td></tr><?php endif; ?>
   </table></div>
 </div>
+
+<?php /* ================= RANKING ================= */
+elseif ($tab === 'ranking'):
+    [$rDesde, $rHasta, $rEtiqueta, $rYm] = ranking_periodo($_GET['mes'] ?? null);
+    $rFilas  = ranking_org($orgId, $rDesde, $rHasta);
+    $rVis    = ranking_visibles($rFilas);
+    $rActivo = ranking_activo($org);
+
+    $rHoras = 0; $rNoshows = 0;
+    foreach ($rFilas as $f) { $rHoras += (int)$f['horas']; $rNoshows += (int)$f['noshows']; }
+    $rLider = $rVis[0] ?? null;
+?>
+<div class="card">
+  <h2 style="margin-top:0">Podio de horas</h2>
+  <p class="mini">
+    Ordena a los estudiantes por horas reservadas del mes (incluye las reservas activas y
+    las que no se asistieron). Cada estudiante ve su posición y puede ocultarse por su cuenta.
+  </p>
+  <p>
+    <span class="pill <?= $rActivo ? 'completada' : 'cancelada' ?>"><?= $rActivo ? 'Activado' : 'Desactivado' ?></span>
+    <span class="mini"><?= $rActivo
+      ? 'Los estudiantes ven el podio en su menú.'
+      : 'Nadie lo ve todavía: ni el enlace ni la insignia aparecen.' ?></span>
+  </p>
+  <form method="post">
+    <?= csrf_field() ?>
+    <input type="hidden" name="a" value="ranking_toggle">
+    <input type="hidden" name="activar" value="<?= $rActivo ? '0' : '1' ?>">
+    <input type="hidden" name="mes" value="<?= e($rYm) ?>">
+    <button class="btn <?= $rActivo ? 'gris' : '' ?>"><?= $rActivo ? 'Desactivar el podio' : 'Activar el podio' ?></button>
+  </form>
+</div>
+
+<form method="get" class="card" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap">
+  <input type="hidden" name="tab" value="ranking">
+  <div><label>Mes</label><input type="month" name="mes" value="<?= e($rYm) ?>"></div>
+  <button class="btn">Ver</button>
+  <a class="btn gris" href="admin.php?tab=ranking&amp;export=csv&amp;mes=<?= e($rYm) ?>">Descargar CSV</a>
+</form>
+
+<div class="kpis">
+  <div class="kpi"><b><?= count($rFilas) ?></b><span>estudiantes con horas</span></div>
+  <div class="kpi"><b><?= $rHoras ?>h</b><span>horas de <?= e($rEtiqueta) ?></span></div>
+  <div class="kpi"><b><?= $rLider ? e($rLider['nombre_corto']) : '—' ?></b><span>líder del mes</span></div>
+  <div class="kpi"><b><?= $rNoshows ?></b><span>no-shows del mes</span></div>
+</div>
+
+<div class="card tabla-scroll" style="margin-top:14px">
+<table class="tabla">
+  <tr>
+    <th>#</th><th>Estudiante</th><th>Carné</th><th>Horas</th><th>Sesiones</th>
+    <th>No-shows</th><th>Asistencia</th><th>Sala favorita</th><th>Podio</th><th></th>
+  </tr>
+  <?php if (!$rFilas): ?>
+    <tr><td colspan="10" class="mini">Nadie reservó en <?= e($rEtiqueta) ?>.</td></tr>
+  <?php endif; ?>
+  <?php foreach ($rFilas as $f): ?>
+  <tr>
+    <td><?= (int)$f['posicion'] ?></td>
+    <td style="display:flex; align-items:center; gap:8px"><?= ranking_avatar($f, 28) ?><?= e($f['name']) ?></td>
+    <td><?= e($f['carne']) ?></td>
+    <td><?= (int)$f['horas'] ?>h</td>
+    <td><?= (int)$f['sesiones'] ?></td>
+    <td><?= (int)$f['noshows'] ?></td>
+    <td><?= $f['asistencia'] === null ? '—' : (int)$f['asistencia'] . '%' ?></td>
+    <td><?= $f['fav_room'] ? e($f['fav_room']) : '—' ?></td>
+    <td>
+      <?php if ($f['opt_out']): ?>
+        <span class="pill cancelada">se ocultó</span>
+      <?php elseif ($f['excluido']): ?>
+        <span class="pill bloqueada">oculto por ustedes</span>
+      <?php else: ?>
+        <span class="pill disponible">visible</span>
+      <?php endif; ?>
+    </td>
+    <td>
+      <?php if ($f['opt_out']): ?>
+        <span class="mini">decisión del estudiante</span>
+      <?php else: ?>
+      <form method="post" class="inline">
+        <?= csrf_field() ?>
+        <input type="hidden" name="a" value="ranking_estudiante">
+        <input type="hidden" name="est_id" value="<?= (int)$f['user_id'] ?>">
+        <input type="hidden" name="ocultar" value="<?= $f['excluido'] ? '0' : '1' ?>">
+        <input type="hidden" name="mes" value="<?= e($rYm) ?>">
+        <button class="btn gris chico"><?= $f['excluido'] ? 'Mostrar' : 'Ocultar' ?></button>
+      </form>
+      <?php endif; ?>
+    </td>
+  </tr>
+  <?php endforeach; ?>
+</table>
+</div>
+<p class="mini">
+  Ocultar a alguien lo saca del podio que ven los estudiantes, pero no borra sus horas ni
+  afecta sus reservas. A quien se ocultó por decisión propia solo puede volver a mostrarlo él mismo.
+</p>
 
 <?php /* ================= CONFIG ================= */
 elseif ($tab === 'config'):
