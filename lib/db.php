@@ -195,6 +195,17 @@ function db_init(PDO $pdo, string $driver): void {
         CONSTRAINT uq_org_schedule UNIQUE (org_id)
     )$suf");
 
+    // Foto de perfil del estudiante (ranking / podio).
+    // Va en tabla APARTE y no como columna de `users` a propósito: current_user()
+    // y attempt_login() hacen SELECT * sobre users en cada carga de página, y una
+    // columna BLOB ahí arrastraría los bytes de la foto en todos los requests.
+    // Aquí solo la lee foto.php, de un estudiante a la vez.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS user_photos (
+        user_id INT NOT NULL PRIMARY KEY,
+        photo MEDIUMBLOB NOT NULL,
+        updated_at VARCHAR(19) NOT NULL
+    )$suf");
+
     // Migraciones suaves: columnas nuevas sobre bases ya existentes
     foreach (["ALTER TABLE organizations ADD COLUMN frozen_reason VARCHAR(255) NULL",
               "ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL",
@@ -204,8 +215,23 @@ function db_init(PDO $pdo, string $driver): void {
               // Apertura manual extendida ("abrir por X tiempo" fuera del horario publicado).
               "ALTER TABLE organizations ADD COLUMN open_override_until VARCHAR(19) NULL",
               // Confirmar llegada (check-in) opcional por asociación; 1 = comportamiento actual.
-              "ALTER TABLE organizations ADD COLUMN require_checkin TINYINT NOT NULL DEFAULT 1"] as $sql) {
+              "ALTER TABLE organizations ADD COLUMN require_checkin TINYINT NOT NULL DEFAULT 1",
+              // Ranking mensual: el estudiante decide ocultarse del podio (opt_out) y el
+              // admin puede excluirlo aparte (excluded). Son DOS banderas a propósito: si
+              // fueran una sola, el admin al "mostrar" revertiría la decisión del estudiante.
+              "ALTER TABLE users ADD COLUMN ranking_opt_out TINYINT NOT NULL DEFAULT 0",
+              "ALTER TABLE users ADD COLUMN ranking_excluded TINYINT NOT NULL DEFAULT 0",
+              // El ranking nace APAGADO en cada asociación: el despliegue no cambia nada
+              // de lo que ven los estudiantes hasta que el admin lo encienda a propósito.
+              "ALTER TABLE organizations ADD COLUMN ranking_enabled TINYINT NOT NULL DEFAULT 0"] as $sql) {
         try { $pdo->exec($sql); } catch (PDOException $e) { /* la columna ya existe */ }
+    }
+
+    // Índices de reservas: los usa el ranking, pero también day_occupancy(),
+    // weekly_used_hours() y la pestaña Reportes, que hoy hacen escaneo completo.
+    foreach (["CREATE INDEX idx_res_org_date ON reservations (org_id, rdate)",
+              "CREATE INDEX idx_res_user_date ON reservations (user_id, rdate)"] as $sql) {
+        try { $pdo->exec($sql); } catch (PDOException $e) { /* el índice ya existe */ }
     }
 
     // Asociaciones ya existentes: su hora de apertura de reservas empieza igual
