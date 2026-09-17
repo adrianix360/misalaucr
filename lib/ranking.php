@@ -223,6 +223,24 @@ function ranking_iniciales(string $nombre): string {
     return $ini;
 }
 
+/**
+ * Avatar del estudiante para el podio y las listas: círculo con iniciales.
+ * $px es el diámetro en píxeles. Cuando existan las fotos de perfil, este es el
+ * ÚNICO punto que cambia — todas las vistas lo consumen a través de aquí.
+ *
+ * Va marcado aria-hidden porque el nombre siempre aparece como texto al lado:
+ * un lector de pantalla que leyera también las iniciales lo diría dos veces.
+ */
+function ranking_avatar(array $f, int $px = 56): string {
+    $color = (string)($f['color'] ?? '#123a5e');
+    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) $color = '#123a5e';
+    $estilo = sprintf('width:%dpx;height:%dpx;font-size:%dpx;background:%s',
+        $px, $px, max(11, (int)round($px * 0.38)), $color);
+    return '<span class="msu-avatar" aria-hidden="true" style="' . $estilo . '">'
+         . htmlspecialchars((string)($f['iniciales'] ?? '?'), ENT_QUOTES, 'UTF-8')
+         . '</span>';
+}
+
 /** Color de fondo del avatar sin foto: determinista y dentro de la paleta de marca. */
 function ranking_color(string $nombre): string {
     $paleta = ['#123a5e', '#0d7f8f', '#0e9c86', '#8a5a2b', '#5b4b8a', '#a8452f', '#2f6f4f'];

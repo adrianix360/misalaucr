@@ -3,21 +3,28 @@
 
 require_once __DIR__ . '/temas.php';
 require_once __DIR__ . '/schedule.php';
+require_once __DIR__ . '/ranking.php';
 
 function e($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
 function page_top(string $title, ?array $u = null, string $active = ''): void {
+    // La organización se resuelve primero porque los enlaces del estudiante
+    // dependen de ella (el podio solo se enlaza si la asociación lo activó).
+    // Tema de temporada: el del usuario si hay sesión, si no el de la primera
+    // organización activa (para que login/suspendida también se vean temáticos).
+    $org = $u ? org_of($u) : (db()->query("SELECT * FROM organizations WHERE active=1 ORDER BY id LIMIT 1")->fetch() ?: null);
+
     $links = [];
     if ($u) {
-        if ($u['role'] === 'student') $links = [['student.php', 'Reservar', 'student'], ['horario.php', 'Horario', 'horario']];
+        if ($u['role'] === 'student') {
+            $links = [['student.php', 'Reservar', 'student'], ['horario.php', 'Horario', 'horario']];
+            if (ranking_activo($org)) $links[] = ['ranking.php', 'Podio', 'ranking'];
+        }
         if ($u['role'] === 'admin')   $links = [['admin.php', 'Panel', 'admin']];
         if ($u['role'] === 'super')   $links = [['superadmin.php', 'Organizaciones', 'super']];
         $links[] = ['password.php', 'Contraseña', 'password'];
     }
 
-    // Tema de temporada: el del usuario si hay sesión, si no el de la primera
-    // organización activa (para que login/suspendida también se vean temáticos).
-    $org  = $u ? org_of($u) : (db()->query("SELECT * FROM organizations WHERE active=1 ORDER BY id LIMIT 1")->fetch() ?: null);
     $tema = tema_actual($org);
     $GLOBALS['_msu_tema'] = $tema;
     $GLOBALS['_msu_ingreso'] = !$u;
