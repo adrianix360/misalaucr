@@ -43,6 +43,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($a === 'foto_subir') {
         [$ok, $msg] = foto_subir_de_post((int)$u['id'], $_FILES['foto'] ?? null);
 
+    } elseif ($a === 'aviso_visto') {
+        db()->prepare("UPDATE users SET ranking_aviso_visto = 1 WHERE id = ?")->execute([(int)$u['id']]);
+        $ok = true; $msg = 'Listo, no te lo mostramos más.';
+
     } elseif ($a === 'foto_quitar') {
         foto_borrar((int)$u['id']);
         $ok = true; $msg = 'Quitaste tu foto de perfil.';
@@ -77,6 +81,10 @@ $rooms->execute([$org['id']]);
 $rooms = $rooms->fetchAll();
 $occ = day_occupancy((int)$org['id'], $fecha);
 $blackouts = day_blackout_map((int)$org['id'], $fecha);
+
+// Fecha de la foto de perfil: la usan el aviso de novedad y el bloque Mi perfil.
+// Es una consulta por clave primaria y no trae los bytes de la imagen.
+$miFotoTs = foto_actualizada((int)$u['id']);
 
 $usadas = weekly_used_hours((int)$u['id'], $org, $fecha);
 $rest   = max(0, (int)$org['max_hours_week'] - $usadas);
@@ -136,6 +144,36 @@ $saludo = sprintf(tema_txt($tema, 'saludo', 'Hola, %s 👋'), $primerNombre);
 <?php show_flash(); ?>
 
 <?php if ($bloqueo): ?><div class="alert bad"><?= e($bloqueo) ?></div><?php endif; ?>
+
+<?php /* --- aviso de novedad: se muestra RANKING_AVISO_DIAS días desde que la
+         asociación encendió el podio, y hasta que el estudiante lo cierre --- */
+if (ranking_aviso_vigente($org) && (int)($u['ranking_aviso_visto'] ?? 0) === 0):
+    $avSinFoto = ($miFotoTs === null) && foto_gd_disponible();
+?>
+<div class="aviso-nuevo">
+  <span class="emoji" aria-hidden="true">🏆</span>
+  <div class="cuerpo">
+    <b>Nuevo: el podio de <?= e($org['name']) ?></b>
+    <p>
+      Cada mes ordenamos a quienes más aprovechan las salas. Ya tenés tu posición:
+      entrá al podio y mirá cómo vas.
+      <?php if ($avSinFoto): ?>
+        Si subís una foto de perfil, vas a aparecer con ella en lugar de tus iniciales.
+      <?php endif; ?>
+    </p>
+    <div class="acciones">
+      <a class="btn chico" href="ranking.php">Ver el podio</a>
+      <?php if ($avSinFoto): ?>
+        <a class="btn gris chico" href="student.php#perfil">Subir mi foto</a>
+      <?php endif; ?>
+      <form class="inline" method="post">
+        <?= csrf_field() ?><input type="hidden" name="a" value="aviso_visto">
+        <button class="btn gris chico">No mostrar más</button>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <div class="saldo">
   <b><?= $rest ?>h</b>
@@ -349,7 +387,7 @@ if ($activas): ?>
 </div>
 <?php endforeach; endif; ?>
 
-<h2>Mi perfil</h2>
+<h2 id="perfil">Mi perfil</h2>
 <div class="card" style="max-width:420px">
   <p class="mini">Carné: <b><?= e($u['carne']) ?></b><?= $u['email'] ? ' · Correo: ' . e($u['email']) : '' ?></p>
   <form method="post" style="display:flex; gap:8px; align-items:end">
@@ -360,9 +398,7 @@ if ($activas): ?>
     </div>
     <button class="btn gris chico" style="margin-bottom:2px">Guardar</button>
   </form>
-  <?php if (ranking_activo($org) && foto_gd_disponible()):
-      $miFotoTs = foto_actualizada((int)$u['id']);
-  ?>
+  <?php if (ranking_activo($org) && foto_gd_disponible()): ?>
   <div class="perfil-podio">
     <p class="mini"><b>Tu foto.</b> Aparece junto a tu nombre en el podio que ve tu asociación. Es opcional.</p>
     <div class="perfil-foto">

@@ -34,6 +34,27 @@ function ranking_activo(?array $org): bool {
     return $org !== null && (int)($org['ranking_enabled'] ?? 0) === 1;
 }
 
+/** Días que el aviso de novedad se muestra a los estudiantes tras encender el podio. */
+const RANKING_AVISO_DIAS = 15;
+
+/**
+ * Hasta cuándo se muestra el aviso de novedad ('Y-m-d H:i:s'), o null si el
+ * podio está apagado o nunca se registró cuándo se encendió.
+ */
+function ranking_aviso_hasta(?array $org): ?string {
+    if (!ranking_activo($org)) return null;
+    $desde = trim((string)($org['ranking_enabled_at'] ?? ''));
+    if ($desde === '') return null;
+    $ts = strtotime($desde);
+    return $ts === false ? null : date('Y-m-d H:i:s', $ts + RANKING_AVISO_DIAS * 86400);
+}
+
+/** ¿La ventana del aviso sigue abierta? */
+function ranking_aviso_vigente(?array $org): bool {
+    $hasta = ranking_aviso_hasta($org);
+    return $hasta !== null && $hasta > date('Y-m-d H:i:s');
+}
+
 /**
  * Periodo del ranking: un mes natural.
  * $ym en formato 'YYYY-MM'; por defecto, el mes en curso.

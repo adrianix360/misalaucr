@@ -719,3 +719,22 @@ main > .card, main > .kpis { animation-delay: .12s; }
 /* La foto ya llega recortada cuadrada desde lib/foto.php; cover es la red de
    seguridad por si alguna quedara con otra proporción. */
 img.msu-avatar { object-fit: cover; display: block; }
+
+/* ---------- Aviso de novedad (podio + foto de perfil) ------------------- */
+.aviso-nuevo {
+  display: flex; gap: 12px; align-items: flex-start;
+  margin: 14px 0; padding: 14px;
+  border: 1px solid #b6e6ec; border-radius: var(--r-lg);
+  background: linear-gradient(135deg, var(--teal-soft), #fff);
+  box-shadow: var(--sh-sm);
+}
+.aviso-nuevo .emoji { font-size: 1.6rem; line-height: 1.1; flex: none; }
+.aviso-nuevo .cuerpo { flex: 1; min-width: 0; }
+.aviso-nuevo b { display: block; color: var(--navy); margin-bottom: 3px; }
+.aviso-nuevo p { margin: 0 0 10px; font-size: .9rem; line-height: 1.55; }
+.aviso-nuevo .acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+@media (max-width: 420px) {
+  .aviso-nuevo { padding: 12px; }
+  .aviso-nuevo .acciones .btn { flex: 1 1 auto; text-align: center; }
+}

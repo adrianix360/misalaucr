@@ -301,11 +301,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     } elseif ($a === 'ranking_toggle') {
         $on = ($_POST['activar'] ?? '') === '1' ? 1 : 0;
-        $pdo->prepare("UPDATE organizations SET ranking_enabled = ? WHERE id = ?")->execute([$on, $orgId]);
+        if ($on) {
+            // Cada encendido reinicia la ventana del aviso de novedad: si la
+            // asociación lo apagó y lo vuelve a prender, los estudiantes
+            // merecen enterarse otra vez.
+            $pdo->prepare("UPDATE organizations SET ranking_enabled = 1, ranking_enabled_at = ? WHERE id = ?")
+                ->execute([date('Y-m-d H:i:s'), $orgId]);
+            $pdo->prepare("UPDATE users SET ranking_aviso_visto = 0 WHERE org_id = ? AND role = 'student'")
+                ->execute([$orgId]);
+        } else {
+            $pdo->prepare("UPDATE organizations SET ranking_enabled = 0 WHERE id = ?")->execute([$orgId]);
+        }
         log_activity($orgId, 'ranking', $on ? 'Podio activado' : 'Podio desactivado');
         $ok = true;
         $msg = $on
-            ? 'Podio activado: los estudiantes ya lo ven en su menú.'
+            ? 'Podio activado. Los estudiantes lo ven en su menú y durante ' . RANKING_AVISO_DIAS . ' días les aparece el aviso de novedad.'
             : 'Podio desactivado: deja de verse de inmediato.';
 
     } elseif ($a === 'foto_quitar_admin') {
@@ -629,7 +639,18 @@ elseif ($tab === 'estudiantes'):
         </form>
       </td>
       <?php else: ?>
-      <td><?= e($s['name']) ?></td>
+      <td>
+        <span style="display:flex; align-items:center; gap:8px">
+          <?= ranking_avatar([
+                'tiene_foto' => !empty($s['foto_ts']),
+                'user_id'    => (int)$s['id'],
+                'foto_ts'    => $s['foto_ts'] ?? null,
+                'iniciales'  => ranking_iniciales((string)$s['name']),
+                'color'      => ranking_color((string)$s['name']),
+              ], 30) ?>
+          <?= e($s['name']) ?>
+        </span>
+      </td>
       <td><?= e($s['carne']) ?></td>
       <td><?= e($s['email']) ?></td>
       <td><?= e($s['phone'] ?? '') ?></td>
@@ -895,6 +916,13 @@ elseif ($tab === 'ranking'):
       ? 'Los estudiantes ven el podio en su menú.'
       : 'Nadie lo ve todavía: ni el enlace ni la insignia aparecen.' ?></span>
   </p>
+  <?php $rAvisoHasta = ranking_aviso_hasta($org); ?>
+  <?php if ($rAvisoHasta !== null && ranking_aviso_vigente($org)): ?>
+    <p class="mini">📣 A los estudiantes les aparece el aviso de novedad —con la invitación a subir foto—
+    hasta el <b><?= e(date('d/m/Y', strtotime($rAvisoHasta))) ?></b>. Cada quien puede cerrarlo antes.</p>
+  <?php elseif ($rActivo): ?>
+    <p class="mini">El aviso de novedad ya terminó su periodo. Si volvés a activar el podio, se muestra otros <?= RANKING_AVISO_DIAS ?> días.</p>
+  <?php endif; ?>
   <?php if (!foto_gd_disponible()): ?>
     <p class="mini">⚠️ Este servidor no tiene activada la librería de imágenes (GD), así que los estudiantes
     no pueden subir foto de perfil. El podio funciona igual, con las iniciales de cada quien.</p>

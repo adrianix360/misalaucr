@@ -223,9 +223,20 @@ function db_init(PDO $pdo, string $driver): void {
               "ALTER TABLE users ADD COLUMN ranking_excluded TINYINT NOT NULL DEFAULT 0",
               // El ranking nace APAGADO en cada asociación: el despliegue no cambia nada
               // de lo que ven los estudiantes hasta que el admin lo encienda a propósito.
-              "ALTER TABLE organizations ADD COLUMN ranking_enabled TINYINT NOT NULL DEFAULT 0"] as $sql) {
+              "ALTER TABLE organizations ADD COLUMN ranking_enabled TINYINT NOT NULL DEFAULT 0",
+              // Momento en que la asociación encendió el podio: desde ahí se cuentan
+              // los días que el aviso de novedad se les muestra a los estudiantes.
+              "ALTER TABLE organizations ADD COLUMN ranking_enabled_at VARCHAR(19) NULL",
+              // Cada estudiante puede cerrar ese aviso y no volver a verlo.
+              "ALTER TABLE users ADD COLUMN ranking_aviso_visto TINYINT NOT NULL DEFAULT 0"] as $sql) {
         try { $pdo->exec($sql); } catch (PDOException $e) { /* la columna ya existe */ }
     }
+
+    // Asociaciones que ya tenían el podio encendido antes de que existiera el
+    // aviso: su ventana empieza ahora, no en una fecha que nadie registró.
+    $pdo->prepare("UPDATE organizations SET ranking_enabled_at = ?
+                   WHERE ranking_enabled = 1 AND ranking_enabled_at IS NULL")
+        ->execute([date('Y-m-d H:i:s')]);
 
     // Índices de reservas: los usa el ranking, pero también day_occupancy(),
     // weekly_used_hours() y la pestaña Reportes, que hoy hacen escaneo completo.
