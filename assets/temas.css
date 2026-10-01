@@ -286,11 +286,67 @@ body.tema-halloween .saldo { background: linear-gradient(120deg, #241a36, #33204
 body.tema-halloween .saldo::before { background: linear-gradient(180deg, #ffb03a, #ff7a1a); width: 6px; }
 body.tema-halloween .saldo b { color: #ffb03a; font-family: "Creepster", cursive; }
 body.tema-halloween .blk { background: transparent; }
-body.tema-halloween .blk.libre { background: transparent; color: #f6f1e6; border-color: #5a4480; }
+body.tema-halloween .blk.libre { background: rgba(255, 122, 26, .08); color: #ffd08a; border-color: rgba(255, 138, 42, .55); }
+body.tema-halloween a.blk.libre:hover { background: rgba(255, 122, 26, .18); color: #fff1dc; border-color: #ff8a2a; }
 body.tema-halloween .blk.mio { background: linear-gradient(180deg, #ffb03a, #ff7a1a); color: #3d1d02; box-shadow: 0 0 20px 3px rgba(255, 122, 26, .45); }
-body.tema-halloween .blk.ocupado { background: #2c2140; color: #8d80a8; border-color: #3a2b52; }
-body.tema-halloween .blk.pasado { color: #5c5075; border-color: #3a2b52; }
-body.tema-halloween .blk.cerrado { background: #2c2140; color: #8d80a8; border-color: #3a2b52; }
+body.tema-halloween .blk.ocupado { background: #2c2140; color: #b3a6cf; border-color: #3a2b52; }
+body.tema-halloween .blk.pasado { color: #7d6f99; border-color: #3a2b52; }
+body.tema-halloween .blk.cerrado { background: #2c2140; color: #b3a6cf; border-color: #3a2b52; }
+/* píldoras de estado: los colores base (tinta oscura) no se leen sobre fondo oscuro */
+body.tema-halloween .pill.activa     { color: #ffb03a; border-color: rgba(255, 138, 42, .45); }
+body.tema-halloween .pill.completada,
+body.tema-halloween .pill.disponible { color: #a5eaa7; border-color: rgba(126, 224, 129, .40); }
+body.tema-halloween .pill.cancelada  { color: #c3b6de; border-color: #453360; }
+body.tema-halloween .pill.no_show,
+body.tema-halloween .pill.bloqueada  { color: #ffb3b3; border-color: rgba(255, 141, 141, .40); }
+/* insignia del podio (student.php): fondo blanco base → tarjeta oscura */
+body.tema-halloween .rank-insignia { background: #241a36; border-color: #3a2b52; color: #f6f1e6; }
+body.tema-halloween .rank-insignia:hover { border-color: rgba(255, 138, 42, .55); }
+body.tema-halloween .rank-insignia .ir { color: #ff9d4d; }
+body.tema-halloween .rank-insignia .gancho { color: #a5eaa7; }
+/* enlaces sueltos (¿Olvidaste tu contraseña?, Volver a iniciar sesión…) */
+body.tema-halloween a:not([class]) { color: #ffb03a; text-decoration-color: rgba(255, 176, 58, .5); }
+body.tema-halloween a:not([class]):hover { color: #ffd08a; text-decoration-color: currentColor; }
+/* controles nativos (calendario de input date, opciones de select, botón de
+   archivo, barras de scroll) en versión oscura */
+body.tema-halloween { color-scheme: dark; }
+body.tema-halloween input:hover, body.tema-halloween select:hover, body.tema-halloween textarea:hover { border-color: #6a5290; }
+body.tema-halloween input[type=file]::file-selector-button {
+  background: #2c2140; color: #e6dcf5; border: 1px solid #453360; border-radius: 6px; padding: 5px 10px; cursor: pointer;
+}
+/* texto sobre naranja: tinta oscura (el blanco base no se lee sobre naranja) */
+body.tema-halloween .tabs a.on,
+body.tema-halloween .pastilla-abiertas__cuenta,
+body.tema-halloween .agenda-dia__etiqueta { color: #241407; }
+body.tema-halloween .btn.gris:hover { background: #2c2140; border-color: #6a5290; }
+/* alerta de error */
+body.tema-halloween .alert.bad { color: #ffb3b3; border-color: rgba(255, 141, 141, .35); }
+/* líneas divisorias claras de la marca base → borde morado del tema */
+body.tema-halloween .tabla td,
+body.tema-halloween .rank-lista li + li,
+body.tema-halloween .lista-excepciones li + li,
+body.tema-halloween .perfil-podio { border-color: #3a2b52; }
+/* barra de confirmación de reserva (student.php) */
+body.tema-halloween .confirmar { background: #241a36; border-color: rgba(255, 138, 42, .40); border-top-color: #ff7a1a; }
+/* aviso de novedad (podio / foto de perfil) */
+body.tema-halloween .aviso-nuevo { background: linear-gradient(135deg, #33204d, #241a36); border-color: rgba(255, 138, 42, .35); }
+/* aviso "hay una versión nueva" */
+body.tema-halloween .msu-aviso-upd { background: #2c2140; color: #f6f1e6; border: 1px solid #453360; }
+body.tema-halloween .msu-aviso-upd #msuRecargar { background: #ff7a1a; color: #241407; }
+/* editor de franjas del horario (admin) */
+body.tema-halloween .gh-celda { background: #1a1327; border-color: #3a2b52; }
+body.tema-halloween .gh-celda.on { background: #ff7a1a; border-color: #ffb03a; }
+body.tema-halloween .gh-celda.on:hover { background: #ff9d4d; }
+/* horario.php: estado abierto / cerrado */
+body.tema-halloween .badge-estado.abierto { background: rgba(126, 224, 129, .12); color: #a5eaa7; border-color: rgba(126, 224, 129, .35); }
+body.tema-halloween .badge-estado.cerrado { background: rgba(184, 35, 42, .22); color: #ffb3b3; border-color: rgba(255, 141, 141, .35); }
+/* podio (ranking.php): las tarjetas blancas pasan a tarjetas oscuras */
+body.tema-halloween .podio .puesto { background: #241a36; border-color: #3a2b52; color: #f6f1e6; }
+body.tema-halloween .podio .puesto.p1 { border-color: rgba(255, 138, 42, .55); box-shadow: 0 0 26px -6px rgba(255, 122, 26, .45); }
+body.tema-halloween .podio .puesto.yo { border-color: #ff7a1a; box-shadow: 0 0 0 2px rgba(255, 122, 26, .30); }
+body.tema-halloween .podio .base { background: linear-gradient(180deg, #ffa23a, #ff7a1a); color: #241407; font-weight: 700; }
+body.tema-halloween .rank-gancho { color: #a5eaa7; }
+body.tema-halloween .tag-yo { background: #ff7a1a; color: #241407; }
 body.tema-halloween .res, body.tema-halloween .kpi, body.tema-halloween .tabs a { background: #241a36; border-color: #3a2b52; color: #f6f1e6; }
 body.tema-halloween .tabla tbody tr:hover { background: #2c2140; }
 body.tema-halloween .alert.good { background: rgba(126, 224, 129, .12); color: #a5eaa7; border-color: rgba(126, 224, 129, .35); }
