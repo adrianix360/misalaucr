@@ -206,6 +206,36 @@ function db_init(PDO $pdo, string $driver): void {
         updated_at VARCHAR(19) NOT NULL
     )$suf");
 
+    // Anuncios (banners) que cada asociación muestra sobre la rejilla de salas.
+    // Es un "plugin": solo se ven si el super-admin encendió anuncios_enabled en
+    // la asociación. retirado = 1 lo pone el super-admin (moderación) y la
+    // asociación no puede revertirlo; active es la pausa normal de la asociación.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS anuncios (
+        id $PK,
+        org_id INT NOT NULL,
+        titulo VARCHAR(120) NOT NULL,
+        link_url VARCHAR(500) NULL,
+        starts_at VARCHAR(19) NOT NULL,
+        ends_at VARCHAR(19) NULL,
+        orden INT NOT NULL DEFAULT 0,
+        active TINYINT NOT NULL DEFAULT 1,
+        retirado TINYINT NOT NULL DEFAULT 0,
+        vistas INT NOT NULL DEFAULT 0,
+        clics INT NOT NULL DEFAULT 0,
+        created_at VARCHAR(19) NOT NULL,
+        updated_at VARCHAR(19) NOT NULL
+    )$suf");
+    try { $pdo->exec("CREATE INDEX idx_anuncios_org ON anuncios (org_id, orden)"); }
+    catch (PDOException $e) { /* el índice ya existe */ }
+
+    // Imagen del anuncio en tabla aparte por la misma razón que user_photos:
+    // los listados de anuncios no deben arrastrar los bytes. Solo la lee anuncio.php.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS anuncio_imagenes (
+        anuncio_id INT NOT NULL PRIMARY KEY,
+        imagen MEDIUMBLOB NOT NULL,
+        updated_at VARCHAR(19) NOT NULL
+    )$suf");
+
     // Migraciones suaves: columnas nuevas sobre bases ya existentes
     foreach (["ALTER TABLE organizations ADD COLUMN frozen_reason VARCHAR(255) NULL",
               "ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL",
@@ -228,7 +258,11 @@ function db_init(PDO $pdo, string $driver): void {
               // los días que el aviso de novedad se les muestra a los estudiantes.
               "ALTER TABLE organizations ADD COLUMN ranking_enabled_at VARCHAR(19) NULL",
               // Cada estudiante puede cerrar ese aviso y no volver a verlo.
-              "ALTER TABLE users ADD COLUMN ranking_aviso_visto TINYINT NOT NULL DEFAULT 0"] as $sql) {
+              "ALTER TABLE users ADD COLUMN ranking_aviso_visto TINYINT NOT NULL DEFAULT 0",
+              // Anuncios: nacen APAGADOS en todas las asociaciones; solo el
+              // super-admin los enciende. anuncios_segundos = rotación del carrusel.
+              "ALTER TABLE organizations ADD COLUMN anuncios_enabled TINYINT NOT NULL DEFAULT 0",
+              "ALTER TABLE organizations ADD COLUMN anuncios_segundos INT NOT NULL DEFAULT 6"] as $sql) {
         try { $pdo->exec($sql); } catch (PDOException $e) { /* la columna ya existe */ }
     }
 

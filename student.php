@@ -4,6 +4,7 @@ require_once __DIR__ . '/lib/rules.php';
 require_once __DIR__ . '/lib/layout.php';
 require_once __DIR__ . '/lib/ranking.php';
 require_once __DIR__ . '/lib/foto.php';
+require_once __DIR__ . '/lib/anuncios.php';
 
 $u = require_role(['student']);
 $org = org_of($u);
@@ -260,6 +261,9 @@ if ($activas): ?>
   </form>
 </div>
 <?php endforeach; endif; ?>
+
+<?php /* --- anuncios de la asociación (plugin; sin anuncios no imprime nada) --- */
+anuncios_render(anuncios_vigentes($org), $org, true); ?>
 
 <h2><?= e(tema_txt($tema, 'salas_h2', 'Salas de hoy')) ?></h2>
 <?php if (count($dias) > 1): ?>

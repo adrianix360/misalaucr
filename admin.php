@@ -5,6 +5,7 @@ require_once __DIR__ . '/lib/layout.php';
 require_once __DIR__ . '/lib/schedule.php';
 require_once __DIR__ . '/lib/ranking.php';
 require_once __DIR__ . '/lib/foto.php';
+require_once __DIR__ . '/lib/anuncios.php';
 
 $u = require_role(['admin']);
 $org = org_of($u);
@@ -16,9 +17,21 @@ $tab = $_GET['tab'] ?? 'reservas';
 
 /* ============ ACCIONES ============ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Archivo más grande que post_max_size: PHP vacía $_POST y csrf_check()
+    // diría "Sesión inválida". Se detecta antes para dar la causa real.
+    if (foto_post_excedido()) {
+        flash_set(false, 'El archivo pesa más de lo que acepta el servidor. Pruebe con uno más liviano.');
+        header('Location: admin.php?tab=' . urlencode($tab)); exit;
+    }
     csrf_check();
     $a = $_POST['a'] ?? '';
     $ok = false; $msg = 'Acción desconocida.';
+
+    // Anuncios: si el super-admin apagó el plugin, ninguna de sus acciones corre.
+    if (strpos($a, 'anuncio') === 0 && !anuncios_activos_en($org)) {
+        $a = '';
+        $msg = 'Los anuncios no están habilitados para esta asociación.';
+    }
 
     /* Editor de horario (sin JavaScript): el formulario lleva un único
        <input type="hidden" name="a" value="horario_guardar">, y los botones de
@@ -357,6 +370,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ? "{$est['name']} ya no aparece en el podio."
                 : "{$est['name']} vuelve a aparecer en el podio.";
         }
+
+    } elseif ($a === 'anuncio_crear') {
+        [$ok, $msg] = anuncio_crear($orgId, $_POST, $_FILES['imagen'] ?? null);
+
+    } elseif ($a === 'anuncio_editar') {
+        [$ok, $msg] = anuncio_editar($orgId, (int)($_POST['id'] ?? 0), $_POST, $_FILES['imagen'] ?? null);
+
+    } elseif ($a === 'anuncio_toggle') {
+        [$ok, $msg] = anuncio_toggle($orgId, (int)($_POST['id'] ?? 0));
+
+    } elseif ($a === 'anuncio_mover') {
+        [$ok, $msg] = anuncio_mover($orgId, (int)($_POST['id'] ?? 0), (int)($_POST['dir'] ?? 0));
+
+    } elseif ($a === 'anuncio_borrar') {
+        [$ok, $msg] = anuncio_borrar($orgId, (int)($_POST['id'] ?? 0));
+
+    } elseif ($a === 'anuncios_segundos') {
+        [$ok, $msg] = anuncios_set_segundos($orgId, (int)($_POST['segundos'] ?? 6));
     }
 
     flash_set($ok, $msg);
@@ -486,6 +517,9 @@ function importar_csv(PDO $pdo, int $orgId): array {
 /* ============ VISTA ============ */
 page_top('Panel de administración', $u, 'admin');
 $tabs = ['reservas' => 'Reservas', 'estudiantes' => 'Estudiantes', 'salas' => 'Salas', 'restricciones' => 'Restricciones', 'reportes' => 'Reportes', 'ranking' => 'Ranking', 'config' => 'Configuración', 'horario' => 'Horario', 'correos' => 'Correos'];
+// La pestaña solo existe si el super-admin habilitó el plugin en esta asociación.
+if (anuncios_activos_en($org)) $tabs['anuncios'] = 'Anuncios';
+elseif ($tab === 'anuncios') $tab = 'reservas';
 ?>
 <h1>Panel de administración</h1>
 <p class="sub"><?= e($org['name']) ?></p>
@@ -1410,6 +1444,143 @@ elseif ($tab === 'correos'):
   </tr>
   <?php endforeach; ?>
 </table>
+</div>
+
+<?php /* ================= ANUNCIOS ================= */
+elseif ($tab === 'anuncios'):
+    $ads     = anuncios_de_org($orgId);
+    $vig     = anuncios_vigentes($org);
+    $segAct  = anuncios_segundos($org);
+    $ocupan  = anuncios_ocupando_cupo($orgId);
+    $editar  = (int)($_GET['editar'] ?? 0);
+    $ahoraTs = date('Y-m-d H:i:s');
+    $maxMb   = (int)(FOTO_MAX_BYTES / 1024 / 1024);
+    anuncios_script();
+?>
+<?php if (!foto_gd_disponible()): ?>
+<div class="alert bad">Este servidor no tiene activada la librería de imágenes (GD), así que no se pueden subir anuncios. Avise a la administración de MiSalaUCR.</div>
+<?php endif; ?>
+
+<div class="dos-col">
+  <div class="card">
+    <h2 style="margin-top:0">Así lo ven los estudiantes</h2>
+    <p class="mini">El banner aparece en su página de reservas, justo encima de las salas. Si no hay anuncios vigentes, no se muestra nada.</p>
+    <div class="anuncios-telefono">
+      <?php if ($vig): ?>
+        <?php anuncios_render($vig, $org, false); ?>
+      <?php else: ?>
+        <p class="mini" style="text-align:center; margin:18px 0">Sin anuncios vigentes ahora mismo.</p>
+      <?php endif; ?>
+      <div class="falsa-rejilla" aria-hidden="true"></div>
+    </div>
+    <form method="post" style="display:flex; gap:8px; align-items:end; margin-top:14px">
+      <?= csrf_field() ?><input type="hidden" name="a" value="anuncios_segundos">
+      <div style="flex:1"><label>Cambiar de anuncio cada</label>
+        <select name="segundos">
+          <?php for ($s = ANUNCIO_SEG_MIN; $s <= ANUNCIO_SEG_MAX; $s++): ?>
+            <option value="<?= $s ?>" <?= $s === $segAct ? 'selected' : '' ?>><?= $s ?> segundos</option>
+          <?php endfor; ?>
+        </select></div>
+      <button class="btn gris chico" style="margin-bottom:2px">Guardar</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Nuevo anuncio</h2>
+    <?php if ($ocupan >= ANUNCIO_MAX_ACTIVOS): ?>
+      <p class="alert bad">Ya tiene <?= ANUNCIO_MAX_ACTIVOS ?> anuncios activos o programados. Pause o elimine uno para subir otro.</p>
+    <?php elseif (count($ads) >= ANUNCIO_MAX_TOTAL): ?>
+      <p class="alert bad">Llegó al máximo de <?= ANUNCIO_MAX_TOTAL ?> anuncios guardados. Elimine alguno viejo.</p>
+    <?php else: ?>
+    <form method="post" enctype="multipart/form-data">
+      <?= csrf_field() ?><input type="hidden" name="a" value="anuncio_crear">
+      <label>Imagen</label>
+      <input type="file" name="imagen" accept="image/jpeg,image/png,image/webp" required data-anuncio-previa="previa-nuevo">
+      <div class="anuncio-previa" id="previa-nuevo" hidden>
+        <p class="mini" style="margin:0 0 4px">Así se va a recortar:</p>
+        <img alt="Vista previa del anuncio">
+      </div>
+      <label>Título (lo leen los lectores de pantalla)</label>
+      <input name="titulo" maxlength="120" required placeholder="Ej: Feria de empleo — jueves 10 a.m.">
+      <label>Enlace al tocar el banner (opcional)</label>
+      <input name="link_url" maxlength="500" placeholder="https://instagram.com/...">
+      <div class="dos-col">
+        <div><label>Mostrar desde</label><input type="datetime-local" name="starts_at" value="<?= e(anuncio_fecha_a_input($ahoraTs)) ?>"></div>
+        <div><label>Bajar el (opcional)</label><input type="datetime-local" name="ends_at"></div>
+      </div>
+      <br><button class="btn">Publicar anuncio</button>
+    </form>
+    <?php endif; ?>
+    <p class="mini">Medida ideal: <b><?= ANUNCIO_ANCHO ?>×<?= ANUNCIO_ALTO ?> px</b> (proporción 8:3, horizontal). Si la imagen tiene otra proporción, se recorta al centro.
+      JPG, PNG o WebP hasta <?= $maxMb ?> MB. Deje el texto importante en el centro y con letra grande: la mayoría lo ve en el teléfono.
+      Máximo <?= ANUNCIO_MAX_ACTIVOS ?> anuncios activos a la vez.</p>
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Sus anuncios</h2>
+  <p class="mini">Se muestran en este orden. Las vistas cuentan como máximo una por estudiante cada hora; los clics, cuando alguien toca el banner.</p>
+  <?php if (!$ads): ?><p class="mini">Todavía no ha subido anuncios.</p><?php endif; ?>
+  <?php foreach ($ads as $i => $ad):
+      $est = anuncio_estado($ad, $ahoraTs);
+      $ctr = (int)$ad['vistas'] > 0 ? round(100 * (int)$ad['clics'] / (int)$ad['vistas'], 1) : 0;
+  ?>
+  <div class="anuncio-fila">
+    <?php if ($ad['img_ts']): ?>
+      <img class="miniatura" src="<?= e(anuncio_img_url($ad)) ?>" alt="<?= e($ad['titulo']) ?>" loading="lazy">
+    <?php else: ?>
+      <div class="miniatura"></div>
+    <?php endif; ?>
+    <div class="datos">
+      <b><?= e($ad['titulo']) ?> <span class="pill <?= anuncio_estado_pill($est) ?>"><?= e($est) ?></span></b>
+      <div class="mini">
+        Desde <?= e(date('d/m/Y H:i', strtotime($ad['starts_at']))) ?>
+        · <?= $ad['ends_at'] ? 'hasta ' . e(date('d/m/Y H:i', strtotime($ad['ends_at']))) : 'sin fecha de fin' ?>
+        <?php if ($ad['link_url']): ?><br>Enlace: <a href="<?= e($ad['link_url']) ?>" target="_blank" rel="noopener"><?= e(mb_strimwidth($ad['link_url'], 0, 48, '…')) ?></a><?php endif; ?>
+      </div>
+      <?php if ($est === 'retirado'): ?>
+        <div class="mini" style="color:var(--rojo)">La administración de MiSalaUCR retiró este anuncio. Puede eliminarlo.</div>
+      <?php endif; ?>
+      <div class="metricas"><?= (int)$ad['vistas'] ?> vistas · <?= (int)$ad['clics'] ?> clics · <?= $ctr ?>% CTR</div>
+      <div class="acciones">
+        <?php foreach ([-1 => '↑ Subir', 1 => '↓ Bajar'] as $dir => $lbl):
+            if (($dir < 0 && $i === 0) || ($dir > 0 && $i === count($ads) - 1)) continue; ?>
+          <form class="inline" method="post"><?= csrf_field() ?><input type="hidden" name="a" value="anuncio_mover">
+            <input type="hidden" name="id" value="<?= (int)$ad['id'] ?>"><input type="hidden" name="dir" value="<?= $dir ?>">
+            <button class="btn gris chico"><?= $lbl ?></button></form>
+        <?php endforeach; ?>
+        <?php if ($est !== 'retirado'): ?>
+          <form class="inline" method="post"><?= csrf_field() ?><input type="hidden" name="a" value="anuncio_toggle">
+            <input type="hidden" name="id" value="<?= (int)$ad['id'] ?>">
+            <button class="btn gris chico"><?= (int)$ad['active'] === 1 ? 'Pausar' : 'Reactivar' ?></button></form>
+          <a class="btn gris chico" href="admin.php?tab=anuncios&amp;editar=<?= (int)$ad['id'] ?>#editar">Editar</a>
+        <?php endif; ?>
+        <form class="inline" method="post" onsubmit="return confirm('¿Eliminar este anuncio? No se puede deshacer.')">
+          <?= csrf_field() ?><input type="hidden" name="a" value="anuncio_borrar"><input type="hidden" name="id" value="<?= (int)$ad['id'] ?>">
+          <button class="btn rojo chico">Eliminar</button></form>
+      </div>
+
+      <?php if ($editar === (int)$ad['id'] && $est !== 'retirado'): ?>
+      <form method="post" enctype="multipart/form-data" id="editar" style="margin-top:12px">
+        <?= csrf_field() ?><input type="hidden" name="a" value="anuncio_editar"><input type="hidden" name="id" value="<?= (int)$ad['id'] ?>">
+        <label>Título</label><input name="titulo" maxlength="120" required value="<?= e($ad['titulo']) ?>">
+        <label>Enlace (opcional)</label><input name="link_url" maxlength="500" value="<?= e($ad['link_url'] ?? '') ?>" placeholder="https://...">
+        <div class="dos-col">
+          <div><label>Mostrar desde</label><input type="datetime-local" name="starts_at" value="<?= e(anuncio_fecha_a_input($ad['starts_at'])) ?>"></div>
+          <div><label>Bajar el (opcional)</label><input type="datetime-local" name="ends_at" value="<?= e(anuncio_fecha_a_input($ad['ends_at'])) ?>"></div>
+        </div>
+        <label>Reemplazar imagen (opcional)</label>
+        <input type="file" name="imagen" accept="image/jpeg,image/png,image/webp" data-anuncio-previa="previa-<?= (int)$ad['id'] ?>">
+        <div class="anuncio-previa" id="previa-<?= (int)$ad['id'] ?>" hidden><img alt="Vista previa de la imagen nueva"></div>
+        <div style="display:flex; gap:6px; margin-top:10px">
+          <button class="btn chico">Guardar cambios</button>
+          <a class="btn gris chico" href="admin.php?tab=anuncios">Cerrar</a>
+        </div>
+      </form>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endforeach; ?>
 </div>
 <?php endif; ?>
 

@@ -2,6 +2,7 @@
 require_once __DIR__ . '/lib/auth.php';
 require_once __DIR__ . '/lib/rules.php';
 require_once __DIR__ . '/lib/layout.php';
+require_once __DIR__ . '/lib/anuncios.php';
 
 $u = require_role(['super']);
 process_automatic();
@@ -126,6 +127,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             log_activity($dest, 'movido', "{$s['name']} (carné {$s['carne']}) fue movido a {$od['name']}");
             $ok = true; $msg = "{$s['name']} ahora pertenece a {$od['name']} (contadores de inasistencia reiniciados).";
         }
+
+    } elseif ($a === 'anuncios_plugin') {
+        // Enciende o apaga el plugin de anuncios de UNA asociación.
+        $id = (int)$_POST['id'];
+        $on = ($_POST['activar'] ?? '') === '1' ? 1 : 0;
+        $pdo->prepare("UPDATE organizations SET anuncios_enabled=? WHERE id=?")->execute([$on, $id]);
+        log_activity($id, 'anuncio', $on ? 'Plugin de anuncios activado' : 'Plugin de anuncios desactivado');
+        $ok = true;
+        $msg = $on ? 'Anuncios activados: la asociación ya ve la pestaña Anuncios en su panel.'
+                   : 'Anuncios desactivados: dejan de verse de inmediato (no se borra nada).';
+
+    } elseif ($a === 'anuncios_apagar_todo') {
+        // Interruptor de emergencia: apaga el plugin en todas las asociaciones.
+        $n = $pdo->exec("UPDATE organizations SET anuncios_enabled=0 WHERE anuncios_enabled=1");
+        log_activity(null, 'anuncio', 'Anuncios apagados en todas las asociaciones');
+        $ok = true; $msg = "Anuncios apagados en $n asociación(es). No se borró ningún anuncio.";
+
+    } elseif ($a === 'anuncio_retirar') {
+        // Moderación: retirado=1 lo saca de circulación y la asociación no puede reactivarlo.
+        $id = (int)$_POST['id'];
+        $st = $pdo->prepare("SELECT * FROM anuncios WHERE id=?"); $st->execute([$id]);
+        if ($ad = $st->fetch()) {
+            $ret = (int)$ad['retirado'] === 1 ? 0 : 1;
+            $pdo->prepare("UPDATE anuncios SET retirado=?, updated_at=? WHERE id=?")->execute([$ret, date('Y-m-d H:i:s'), $id]);
+            log_activity((int)$ad['org_id'], 'anuncio', ($ret ? 'Anuncio retirado por la plataforma: ' : 'Anuncio restaurado por la plataforma: ') . $ad['titulo']);
+            $ok = true; $msg = $ret ? 'Anuncio retirado: deja de verse de inmediato.' : 'Anuncio restaurado.';
+        } else { $msg = 'Anuncio no encontrado.'; }
+
+    } elseif ($a === 'anuncio_borrar_su') {
+        $id = (int)$_POST['id'];
+        $st = $pdo->prepare("SELECT org_id FROM anuncios WHERE id=?"); $st->execute([$id]);
+        if ($ad = $st->fetch()) [$ok, $msg] = anuncio_borrar((int)$ad['org_id'], $id);
+        else $msg = 'Anuncio no encontrado.';
     }
 
     flash_set($ok, $msg);
@@ -135,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 /* ============ VISTA ============ */
 page_top('Plataforma', $u, 'super');
-$tabs = ['orgs' => 'Organizaciones', 'dashboard' => 'Dashboard', 'estudiantes' => 'Estudiantes'];
+$tabs = ['orgs' => 'Organizaciones', 'dashboard' => 'Dashboard', 'estudiantes' => 'Estudiantes', 'anuncios' => 'Anuncios'];
 ?>
 <h1>Plataforma MiSalaUCR</h1>
 <p class="sub">Administración global</p>
@@ -277,7 +311,7 @@ elseif ($tab === 'dashboard'):
          LEFT JOIN organizations o ON o.id = a.org_id
          ORDER BY a.id DESC LIMIT 20")->fetchAll();
     $iconos = ['reserva'=>'📅','cancelacion'=>'✖️','checkin'=>'✅','no_show'=>'🚫','estudiante'=>'👤',
-               'fila'=>'⏳','asignacion'=>'🎟️','organizacion'=>'🏛️','movido'=>'🔁','horario'=>'🕒'];
+               'fila'=>'⏳','asignacion'=>'🎟️','organizacion'=>'🏛️','movido'=>'🔁','horario'=>'🕒','anuncio'=>'📢'];
 ?>
 <div class="kpis">
   <div class="kpi"><b><?= $totOrgs ?></b><span>organizaciones (<?= $activas ?> activas · <?= $totOrgs - $activas ?> congeladas)</span></div>
@@ -396,6 +430,78 @@ elseif ($tab === 'estudiantes'):
 </table>
 </div>
 <?php endif; ?>
+
+<?php /* ================= ANUNCIOS ================= */
+elseif ($tab === 'anuncios'):
+    $orgs = $pdo->query("SELECT o.id, o.name, o.active, o.anuncios_enabled,
+            (SELECT COUNT(*) FROM anuncios a WHERE a.org_id = o.id) AS n_ads
+        FROM organizations o ORDER BY o.name")->fetchAll();
+    $nOn = count(array_filter($orgs, fn($o) => (int)$o['anuncios_enabled'] === 1));
+    $todos = $pdo->query("SELECT a.*, i.updated_at AS img_ts, o.name AS org_name, o.anuncios_enabled
+        FROM anuncios a JOIN organizations o ON o.id = a.org_id
+        LEFT JOIN anuncio_imagenes i ON i.anuncio_id = a.id
+        ORDER BY o.name, a.orden, a.id")->fetchAll();
+    $ahoraTs = date('Y-m-d H:i:s');
+?>
+<div class="card">
+  <h2 style="margin-top:0">Plugin de anuncios por asociación</h2>
+  <p class="mini">Al activarlo, la asociación ve la pestaña <b>Anuncios</b> en su panel y puede publicar banners sobre la página de reservas. Al desactivarlo, dejan de verse de inmediato; no se borra nada.</p>
+  <div class="tabla-scroll"><table class="tabla">
+    <tr><th>Asociación</th><th>Anuncios guardados</th><th>Plugin</th><th></th></tr>
+    <?php foreach ($orgs as $o): $on = (int)$o['anuncios_enabled'] === 1; ?>
+    <tr>
+      <td><?= e($o['name']) ?><?= $o['active'] ? '' : ' <span class="pill cancelada">congelada</span>' ?></td>
+      <td><?= (int)$o['n_ads'] ?></td>
+      <td><span class="pill <?= $on ? 'completada' : 'cancelada' ?>"><?= $on ? 'activado' : 'desactivado' ?></span></td>
+      <td>
+        <form class="inline" method="post">
+          <?= csrf_field() ?><input type="hidden" name="a" value="anuncios_plugin"><input type="hidden" name="id" value="<?= (int)$o['id'] ?>">
+          <input type="hidden" name="activar" value="<?= $on ? '0' : '1' ?>">
+          <button class="btn <?= $on ? 'gris' : '' ?> chico"><?= $on ? 'Desactivar' : 'Activar' ?></button>
+        </form>
+      </td>
+    </tr>
+    <?php endforeach; ?>
+  </table></div>
+  <?php if ($nOn > 0): ?>
+  <form method="post" style="margin-top:12px" onsubmit="return confirm('¿Apagar los anuncios en TODAS las asociaciones?')">
+    <?= csrf_field() ?><input type="hidden" name="a" value="anuncios_apagar_todo">
+    <button class="btn rojo chico">Apagar anuncios en todas (emergencia)</button>
+  </form>
+  <?php endif; ?>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Todos los anuncios</h2>
+  <p class="mini">Si un anuncio es inapropiado, <b>Retirar</b> lo saca de circulación y la asociación no puede volver a activarlo.</p>
+  <?php if (!$todos): ?><p class="mini">Ninguna asociación ha subido anuncios.</p><?php endif; ?>
+  <?php foreach ($todos as $ad):
+      $est = anuncio_estado($ad, $ahoraTs);
+      $ret = (int)$ad['retirado'] === 1;
+  ?>
+  <div class="anuncio-fila">
+    <?php if ($ad['img_ts']): ?>
+      <img class="miniatura" src="<?= e(anuncio_img_url($ad)) ?>" alt="<?= e($ad['titulo']) ?>" loading="lazy">
+    <?php else: ?><div class="miniatura"></div><?php endif; ?>
+    <div class="datos">
+      <b><?= e($ad['titulo']) ?> <span class="pill <?= anuncio_estado_pill($est) ?>"><?= e($est) ?></span></b>
+      <div class="mini"><?= e($ad['org_name']) ?><?= (int)$ad['anuncios_enabled'] === 1 ? '' : ' · plugin desactivado' ?>
+        <?php if ($ad['link_url']): ?><br>Enlace: <?= e(mb_strimwidth($ad['link_url'], 0, 60, '…')) ?><?php endif; ?></div>
+      <div class="metricas"><?= (int)$ad['vistas'] ?> vistas · <?= (int)$ad['clics'] ?> clics</div>
+      <div class="acciones">
+        <form class="inline" method="post" onsubmit="return confirm('¿<?= $ret ? 'Restaurar' : 'Retirar' ?> este anuncio?')">
+          <?= csrf_field() ?><input type="hidden" name="a" value="anuncio_retirar"><input type="hidden" name="id" value="<?= (int)$ad['id'] ?>">
+          <button class="btn <?= $ret ? 'gris' : 'rojo' ?> chico"><?= $ret ? 'Restaurar' : 'Retirar' ?></button>
+        </form>
+        <form class="inline" method="post" onsubmit="return confirm('¿Eliminar este anuncio definitivamente?')">
+          <?= csrf_field() ?><input type="hidden" name="a" value="anuncio_borrar_su"><input type="hidden" name="id" value="<?= (int)$ad['id'] ?>">
+          <button class="btn gris chico">Eliminar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <?php endforeach; ?>
+</div>
 <?php endif; ?>
 
 <?php page_bottom();
