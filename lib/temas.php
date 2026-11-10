@@ -135,6 +135,25 @@ function tema_deco_banner(string $tema): void {
     echo '<div class="deco-regalos deco-regalos--banner" aria-hidden="true">' . tema_svg_regalos() . '</div>';
 }
 
+/**
+ * Medidor de bastón de caramelo dentro de .saldo (solo Navidad).
+ * $rest = horas que le quedan; $max = máximo semanal de la asociación.
+ */
+function tema_deco_saldo(string $tema, int $rest, int $max): void {
+    if ($tema !== 'navidad' || $max <= 0) return;
+    $rest = max(0, min($rest, $max));
+    $pct  = round($rest / $max * 100, 1);
+    $marcas = array_unique([0, (int)round($max / 3), (int)round($max * 2 / 3), $max]);
+    echo '<div class="deco-saldo">';
+    echo '<div class="deco-saldo-barra" role="img" aria-label="' . $rest . ' de ' . $max . ' horas disponibles esta semana">'
+       . '<span style="width:' . $pct . '%"><i></i></span></div>';
+    echo '<div class="deco-saldo-escala" aria-hidden="true">';
+    foreach ($marcas as $k => $m) echo '<span>' . $m . ($k === count($marcas) - 1 ? ' h' : '') . '</span>';
+    echo '</div>';
+    echo '<p class="deco-saldo-nota">El bastón de caramelo se va gastando con cada reserva. Se rellena el lunes.</p>';
+    echo '</div>';
+}
+
 /** SVG de la pila de regalos con duende (compartido por login y Reservar). */
 function tema_svg_regalos(): string {
     return <<<'SVG'

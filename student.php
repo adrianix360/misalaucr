@@ -177,6 +177,7 @@ if (ranking_aviso_vigente($org) && (int)($u['ranking_aviso_visto'] ?? 0) === 0):
 <div class="saldo">
   <b><?= $rest ?>h</b>
   <div><?= e(tema_txt($tema, 'saldo', 'te quedan disponibles esta semana')) ?> <span class="mini">(máx. <?= (int)$org['max_hours_week'] ?>h por semana, <?= (int)$org['max_blocks_session'] ?>h por sesión)</span></div>
+  <?php tema_deco_saldo($tema, (int)$rest, (int)$org['max_hours_week']); ?>
 </div>
 
 <?php /* --- insignia del podio mensual (solo si la asociación lo activó) --- */

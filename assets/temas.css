@@ -485,6 +485,27 @@ body.tema-navidad .saldo::before {
   background: repeating-linear-gradient(135deg, #d62839 0 9px, #fff 9px 18px);
 }
 body.tema-navidad .saldo b { font-family: var(--f-titulo); font-weight: 400; font-size: 2.8rem; color: #d62839; letter-spacing: 0; }
+/* medidor de bastón de caramelo (div.deco-saldo, lo imprime tema_deco_saldo) */
+body.tema-navidad .saldo { flex-wrap: wrap; row-gap: 12px; }
+.deco-saldo { flex: 1 0 100%; display: flex; flex-direction: column; gap: 6px; }
+.deco-saldo-barra {
+  height: 28px; border-radius: 14px; overflow: hidden;
+  background: #f6e7cb; border: 2.5px solid #123a5e;
+}
+.deco-saldo-barra span {
+  display: block; height: 100%; overflow: hidden; border-right: 2.5px solid #123a5e;
+  transform-origin: left center; animation: nv-llena .9s cubic-bezier(.2, .8, .2, 1) both;
+}
+.deco-saldo-barra span[style^="width:0%"] { border-right: 0; }
+.deco-saldo-barra i {
+  display: block; width: calc(100% + 40px); height: 100%;
+  background: repeating-linear-gradient(135deg, #d62839 0 12px, #fff 12px 24px);
+  animation: nv-corre 1.8s linear infinite;
+}
+.deco-saldo-escala { display: flex; justify-content: space-between; font-family: var(--f-mono); font-size: .72rem; color: #566076; }
+.deco-saldo-nota { margin: 4px 0 0; font-size: .85rem; line-height: 1.45; color: #566076; }
+@keyframes nv-llena { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
 body.tema-navidad .confirmar { background: #fff1c2; border: 2px solid var(--navy); border-top-width: 2px; box-shadow: 0 6px 0 var(--navy); }
 body.tema-navidad .confirmar b { color: var(--navy); }
 body.tema-navidad .res { border: 2px solid var(--navy); border-left: 8px solid #d62839; }
@@ -660,7 +681,7 @@ body.tema-navidad .login-box .msu-logo--xl .msu-mark::before { animation-duratio
 @media (prefers-reduced-motion: reduce) {
   .deco-calabazas i { animation: none !important; }
   body.tema-navidad *, body.tema-navidad *::before, body.tema-navidad *::after,
-  .deco-banderines i, .deco-confeti i, .deco-baston i {
+  .deco-banderines i, .deco-confeti i, .deco-baston i, .deco-saldo-barra span, .deco-saldo-barra i {
     animation: none !important; transition: none !important;
   }
   .deco-confeti { display: none; }
