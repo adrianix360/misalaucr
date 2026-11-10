@@ -553,13 +553,13 @@ body.tema-navidad .blk.ocupado::after {
     radial-gradient(circle at 74% 50%, var(--lz) 4.8px, transparent 5.4px);
 }
 body.tema-navidad .blk.mio::after { animation: nv-brinca 2.2s ease-in-out infinite; }
-/* ocupado: caja menta con lazo verde */
-body.tema-navidad .blk.ocupado { background: #cdefe0; color: #1d5c47; border: 2px solid #7cc4a9; }
-body.tema-navidad .blk.ocupado::before { border-color: #7cc4a9; background: #b4e3d0; }
+/* ocupado: caja rojo claro con lazo rojo oscuro (tomada por otra persona) */
+body.tema-navidad .blk.ocupado { background: #fbd5d8; color: #7a1712; border: 2px solid #b3261e; }
+body.tema-navidad .blk.ocupado::before { border-color: #b3261e; background: #f6b8be; }
 body.tema-navidad .blk.ocupado::after {
   background:
-    radial-gradient(circle at 26% 50%, #3e9e7c 4.8px, transparent 5.4px),
-    radial-gradient(circle at 74% 50%, #3e9e7c 4.8px, transparent 5.4px);
+    radial-gradient(circle at 26% 50%, #b3261e 4.8px, transparent 5.4px),
+    radial-gradient(circle at 74% 50%, #b3261e 4.8px, transparent 5.4px);
 }
 body.tema-navidad a.blk.ocupado:hover { border-color: var(--navy); color: var(--navy); box-shadow: 0 5px 0 #e6d3b3; transform: translateY(-2px); }
 /* cerrado: cartón rayado */
