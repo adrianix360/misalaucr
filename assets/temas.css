@@ -554,30 +554,19 @@ body.tema-navidad .blk.pasado::before { display: none; }
 /* ---------- saludo (student.php · .deco-banner): papel de regalo ---------- */
 .deco-banner {
   position: relative; overflow: hidden; border-radius: 20px;
-  padding: 26px 150px 26px 30px; margin-bottom: 22px;
-  display: flex; align-items: center; gap: 22px;
+  padding: 14px 18px 0 30px; margin-bottom: 22px;
+  display: flex; align-items: center; gap: 18px;
   background-color: #d62839;
   background-image: radial-gradient(#e2505e 3px, transparent 3.6px);
   background-size: 28px 28px;
   border: 2px solid #123a5e; box-shadow: 0 6px 0 #123a5e;
 }
-/* listón vertical */
-.deco-banner::before {
-  content: ""; position: absolute; top: 0; bottom: 0; right: 84px; width: 26px;
-  background: #ffc93c; border-left: 2px solid #123a5e; border-right: 2px solid #123a5e;
-  pointer-events: none;
-}
-/* lazo que se mece */
-.deco-banner::after {
-  content: ""; position: absolute; right: 49px; top: 10px; width: 96px; height: 48px;
-  pointer-events: none; transform-origin: 50% 80%;
-  background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 48'><g fill='%23FFC93C' stroke='%23123A5E' stroke-width='2.5' stroke-linejoin='round'><path d='M48 24C30 2 6 6 10 22s24 10 38 2zM48 24c18-22 42-18 38-2s-24 10-38 2z'/><path d='M44 28l-10 18 8-3 4 5 4-18zM52 28l10 18-8-3-4 5-4-18z'/><circle cx='48' cy='24' r='8' fill='%23D62839'/></g></svg>") no-repeat center / contain;
-  animation: nv-mece 3.4s ease-in-out infinite;
-}
 .deco-banner > * { position: relative; z-index: 1; }
+.deco-banner > div:first-child { padding-bottom: 14px; }
 .deco-banner h1 { color: #fff !important; margin: 0 0 6px; }
 .deco-banner .sub { color: #fff; margin: 0; font-weight: 500; }
-.deco-banner img { width: 330px; max-height: 190px; object-fit: contain; flex: none; }
+/* regalos + duende (los mismos del login) asentados en el borde inferior */
+.deco-regalos--banner { width: 300px; flex: none; align-self: flex-end; margin: 0 0 -4px; }
 
 /* ---------- ingreso (login, contraseña olvidada, etc.) ---------- */
 body.tema-navidad.pantalla-ingreso .sub { color: #33415c; }
@@ -662,17 +651,16 @@ body.tema-navidad .login-box .msu-logo--xl .msu-mark::before { animation-duratio
   body.tema-navidad h2 { font-size: 1.5rem; }
   .deco-banderines i:nth-child(n+10) { display: none; }
   .deco-confeti i:nth-child(n+11) { display: none; }
-  .deco-banner { padding: 18px 76px 18px 18px; flex-direction: column; align-items: stretch; }
-  .deco-banner::before { right: 30px; width: 20px; }
-  .deco-banner::after { right: 4px; top: 8px; width: 72px; height: 36px; }
-  .deco-banner img { display: none; }
+  .deco-banner { padding: 18px 18px 0; flex-direction: column; align-items: stretch; gap: 4px; }
+  .deco-banner > div:first-child { padding-bottom: 0; }
+  .deco-regalos--banner { width: 180px; align-self: flex-end; margin-top: -10px; }
 }
 
 /* ====================== accesibilidad / preferencias ===================== */
 @media (prefers-reduced-motion: reduce) {
   .deco-calabazas i { animation: none !important; }
   body.tema-navidad *, body.tema-navidad *::before, body.tema-navidad *::after,
-  .deco-banderines i, .deco-confeti i, .deco-baston i, .deco-banner::after {
+  .deco-banderines i, .deco-confeti i, .deco-baston i {
     animation: none !important; transition: none !important;
   }
   .deco-confeti { display: none; }

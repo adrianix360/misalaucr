@@ -126,8 +126,19 @@ function tema_deco_saludo(string $tema): void {
 /** Pie decorativo del ingreso (solo Navidad: pila de regalos con un duende que asoma). */
 function tema_deco_pie(string $tema): void {
     if ($tema !== 'navidad') return;
-    echo <<<'SVG'
-<div class="deco-regalos" aria-hidden="true"><svg viewBox="0 0 460 300" focusable="false">
+    echo '<div class="deco-regalos" aria-hidden="true">' . tema_svg_regalos() . '</div>';
+}
+
+/** Regalos + duende dentro de la cinta del saludo en Reservar (solo Navidad). */
+function tema_deco_banner(string $tema): void {
+    if ($tema !== 'navidad') return;
+    echo '<div class="deco-regalos deco-regalos--banner" aria-hidden="true">' . tema_svg_regalos() . '</div>';
+}
+
+/** SVG de la pila de regalos con duende (compartido por login y Reservar). */
+function tema_svg_regalos(): string {
+    return <<<'SVG'
+<svg viewBox="0 0 460 300" focusable="false">
 <ellipse cx="230" cy="290" rx="224" ry="9" fill="#ebd5ae"/>
 <g stroke="#123a5e" stroke-width="3" stroke-linejoin="round">
 <rect x="340" y="250" width="110" height="38" rx="5" fill="#2ec5d8"/><rect x="350" y="216" width="92" height="34" rx="5" fill="#ffc93c"/><rect x="344" y="186" width="100" height="30" rx="5" fill="#123a5e"/><rect x="388" y="186" width="13" height="102" fill="#d62839"/><path d="M394 186c-16-20-34-6-20 3zM394 186c16-20 34-6 20 3z" fill="#d62839"/>
@@ -137,7 +148,7 @@ function tema_deco_pie(string $tema): void {
 <g class="tapa"><rect x="30" y="136" width="170" height="30" rx="6" fill="#b81f2f"/><rect x="104" y="136" width="22" height="30" fill="#ffc93c"/><path d="M115 136c-24-32-54-10-32 5zM115 136c24-32 54-10 32 5z" fill="#ffc93c"/><circle cx="115" cy="134" r="7" fill="#f2a900"/></g>
 </g>
 <g fill="#ffc93c"><path class="chis" d="M214 104l3 9 9 3-9 3-3 9-3-9-9-3 9-3z"/><path class="chis" d="M28 96l3 9 9 3-9 3-3 9-3-9-9-3 9-3z"/><path class="chis" d="M430 140l3 9 9 3-9 3-3 9-3-9-9-3 9-3z"/></g>
-</svg></div>
+</svg>
 SVG;
 }
 

@@ -133,9 +133,7 @@ $saludo = sprintf(tema_txt($tema, 'saludo', 'Hola, %s 👋'), $primerNombre);
     <h1><?= e($saludo) ?></h1>
     <p class="sub"><?= e($org['name']) ?> · <?= e(strftime_es($hoy)) ?></p>
   </div>
-  <?php if (is_file(__DIR__ . '/assets/brand/navidad/santa.png')): ?>
-    <img src="assets/brand/navidad/santa.png" alt="" aria-hidden="true">
-  <?php endif; ?>
+  <?php tema_deco_banner($tema); ?>
 </div>
 <?php else: ?>
 <?php tema_deco_saludo($tema); ?>
