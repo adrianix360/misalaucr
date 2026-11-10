@@ -27,7 +27,7 @@ function tema_fuentes(string $tema): string {
     switch ($tema) {
         case 'independencia': return '';
         case 'halloween':     return '&family=Creepster';
-        case 'navidad':       return '&family=Mountains+of+Christmas:wght@700&family=Playfair+Display:wght@700';
+        case 'navidad':       return '&family=Lilita+One';
     }
     return '';
 }
@@ -37,7 +37,7 @@ function tema_color_barra(string $tema): string {
     return [
         'independencia' => '#ffffff',
         'halloween'     => '#14101f',
-        'navidad'       => '#0e3b2e',
+        'navidad'       => '#d62839',
     ][$tema] ?? '#ffffff';
 }
 
@@ -69,14 +69,14 @@ function tema_txt(string $tema, string $clave, string $neutro): string {
             'blk_ocupado' => 'Ocupada ⏳',
         ],
         'navidad' => [
-            'login_sub'   => 'Reservá tu sala antes de que Santa se lleve el último cupo.',
+            'login_sub'   => 'El taller ya abrió: los duendes envolvieron las horas. Apartá tu sala antes de que se las lleven todas.',
             'login_btn'   => 'Subirme al trineo',
-            'saludo'      => '¡Feliz diciembre, %s!',
+            'saludo'      => '¡Hola, %s! El taller está abierto',
             'saldo'       => 'te quedan esta semana',
             'salas_h2'    => 'Salas de hoy',
-            'salas_ayuda' => 'Tocá un bloque <b>libre</b> y colgalo en tu árbol. Solo se reserva para hoy.',
+            'salas_ayuda' => 'Cada cajita es una hora de sala. Tocá una <b>libre</b> y la envolvemos a tu nombre. Solo se reserva para hoy.',
             'perfil_ok'   => 'Perfil actualizado. Quedaste en la lista de los buenos.',
-            'confirmar'   => 'Reservar %s, %s a las %d:00',
+            'confirmar'   => 'Envolver %s, %s a las %d:00',
         ],
     ];
     return $txt[$tema][$clave] ?? $neutro;
@@ -92,13 +92,18 @@ function tema_deco_ingreso(string $tema): void {
     } elseif ($tema === 'halloween') {
         echo '<div class="deco-calabazas" aria-hidden="true">' . str_repeat('<i></i>', 7) . '</div>';
     } elseif ($tema === 'navidad') {
-        echo '<div class="deco-luna" aria-hidden="true"></div>';
-        echo '<div class="deco-nieve" aria-hidden="true">' . str_repeat('<i></i>', 22) . '</div>';
-        echo '<div class="deco-guirnalda" aria-hidden="true">' . str_repeat('<i></i>', 11) . '</div>';
-        // Imagen opcional: si no existe el archivo, el ingreso funciona igual.
-        if (is_file(__DIR__ . '/../assets/brand/navidad/trineo.png')) {
-            echo '<img class="deco-trineo" src="assets/brand/navidad/trineo.png" alt="" aria-hidden="true">';
+        // Equipos modestos / ahorro de datos: menos confeti (clase msu-lite).
+        echo '<script>(function(){var c=navigator.connection;if((navigator.hardwareConcurrency||8)<=4||(c&&c.saveData))document.documentElement.classList.add("msu-lite");})();</script>';
+        echo '<div class="deco-banderines" aria-hidden="true">' . str_repeat('<i></i>', 16) . '</div>';
+        // Confeti: 18 piezas, posiciones fijas (sin azar) para que no cambie entre cargas.
+        $conf = '';
+        for ($i = 0; $i < 18; $i++) {
+            $x = 3 + (($i * 37) % 94);          // 3%–96%
+            $d = -(($i * 53) % 100) / 10;       // retraso negativo: ya cayendo al cargar
+            $t = 8 + (($i * 29) % 60) / 10;     // 8s–13.9s
+            $conf .= '<i style="--x:' . $x . '%;--d:' . $d . 's;--t:' . $t . 's"></i>';
         }
+        echo '<div class="deco-confeti" aria-hidden="true">' . $conf . '</div>';
     }
 }
 
@@ -106,7 +111,7 @@ function tema_deco_ingreso(string $tema): void {
 function tema_deco_barra(string $tema): void {
     // 'independencia' no imprime nada: la banda tricolor vive en .topbar::after.
     if ($tema === 'navidad') {
-        echo '<div class="deco-guirnalda" aria-hidden="true">' . str_repeat('<i></i>', 13) . '</div>';
+        echo '<div class="deco-baston" aria-hidden="true"><i></i></div>';
     }
 }
 
@@ -118,9 +123,22 @@ function tema_deco_saludo(string $tema): void {
        . 'Setiembre · mes de la patria</div>';
 }
 
-/** Pie decorativo del ingreso (solo Navidad: colinas nevadas). */
+/** Pie decorativo del ingreso (solo Navidad: pila de regalos con un duende que asoma). */
 function tema_deco_pie(string $tema): void {
-    if ($tema === 'navidad') echo '<div class="deco-colinas" aria-hidden="true"></div>';
+    if ($tema !== 'navidad') return;
+    echo <<<'SVG'
+<div class="deco-regalos" aria-hidden="true"><svg viewBox="0 0 460 300" focusable="false">
+<ellipse cx="230" cy="290" rx="224" ry="9" fill="#ebd5ae"/>
+<g stroke="#123a5e" stroke-width="3" stroke-linejoin="round">
+<rect x="340" y="250" width="110" height="38" rx="5" fill="#2ec5d8"/><rect x="350" y="216" width="92" height="34" rx="5" fill="#ffc93c"/><rect x="344" y="186" width="100" height="30" rx="5" fill="#123a5e"/><rect x="388" y="186" width="13" height="102" fill="#d62839"/><path d="M394 186c-16-20-34-6-20 3zM394 186c16-20 34-6 20 3z" fill="#d62839"/>
+<g class="duende"><circle cx="280" cy="198" r="25" fill="#f2c9a0"/><path d="M250 184L282 98l30 86z" fill="#17a56b"/><rect x="244" y="176" width="74" height="15" rx="7.5" fill="#d62839"/><circle cx="282" cy="96" r="8" fill="#ffc93c"/><circle cx="271" cy="202" r="2.6" fill="#123a5e" stroke="none"/><circle cx="289" cy="202" r="2.6" fill="#123a5e" stroke="none"/></g>
+<rect x="222" y="206" width="118" height="84" fill="#0b7a53"/><rect x="273" y="206" width="16" height="84" fill="#ffc93c"/><path d="M222 206l-16-20h34l12 20zM340 206l16-20h-34l-12 20z" fill="#0a6645"/>
+<rect x="40" y="162" width="150" height="128" fill="#d62839"/><rect x="104" y="162" width="22" height="128" fill="#ffc93c"/>
+<g class="tapa"><rect x="30" y="136" width="170" height="30" rx="6" fill="#b81f2f"/><rect x="104" y="136" width="22" height="30" fill="#ffc93c"/><path d="M115 136c-24-32-54-10-32 5zM115 136c24-32 54-10 32 5z" fill="#ffc93c"/><circle cx="115" cy="134" r="7" fill="#f2a900"/></g>
+</g>
+<g fill="#ffc93c"><path class="chis" d="M214 104l3 9 9 3-9 3-3 9-3-9-9-3 9-3z"/><path class="chis" d="M28 96l3 9 9 3-9 3-3 9-3-9-9-3 9-3z"/><path class="chis" d="M430 140l3 9 9 3-9 3-3 9-3-9-9-3 9-3z"/></g>
+</svg></div>
+SVG;
 }
 
 /** ¿El saludo del estudiante va dentro de la cinta roja? (solo Navidad) */
