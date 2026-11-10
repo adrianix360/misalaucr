@@ -542,8 +542,14 @@ body.tema-navidad a.blk.libre[style*="outline"]::before {
   transform: translateY(-7px) rotate(-1.5deg); animation: nv-abre .45s ease-out;
 }
 /* mío: caja roja con lazo */
-body.tema-navidad .blk.mio { background: #d62839; color: #fff; border: 2px solid #8a0f1c; box-shadow: none; }
-body.tema-navidad .blk.mio::before { border-color: #8a0f1c; background: #b81f2f; }
+/* mío: papel de regalo a franjas diagonales rojas y verdes, tapa verde y lazo amarillo */
+body.tema-navidad .blk.mio {
+  color: #fff; border: 2px solid #123a5e; box-shadow: none; font-weight: 700;
+  background: repeating-linear-gradient(135deg,
+    #d62839 0 9px, #fff 9px 11px, #0b7a53 11px 20px, #fff 20px 22px);
+  text-shadow: 0 0 3px #123a5e, 0 1px 0 #123a5e, 0 -1px 0 #123a5e, 1px 0 0 #123a5e, -1px 0 0 #123a5e;
+}
+body.tema-navidad .blk.mio::before { border-color: #123a5e; background: #0b7a53; }
 body.tema-navidad .blk.mio::after,
 body.tema-navidad .blk.ocupado::after {
   content: ""; position: absolute; left: 50%; top: -9px; width: 22px; height: 12px; margin-left: -11px;
