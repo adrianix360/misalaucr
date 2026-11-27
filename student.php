@@ -5,6 +5,7 @@ require_once __DIR__ . '/lib/layout.php';
 require_once __DIR__ . '/lib/ranking.php';
 require_once __DIR__ . '/lib/foto.php';
 require_once __DIR__ . '/lib/anuncios.php';
+require_once __DIR__ . '/lib/coordinador.php';
 
 $u = require_role(['student']);
 $org = org_of($u);
@@ -62,7 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msg = $oculto
             ? 'Listo: ya no aparecés en el podio de tu asociación.'
             : 'Listo: volvés a aparecer en el podio de tu asociación.';
-    } else { $ok = false; $msg = 'Acción desconocida.'; }
+    } else {
+        // Horas extra y enlaces de registro: solo funcionan si el usuario es Coordinador.
+        $r = coord_handle_post($u, $org, $a);
+        if ($r === null) { $ok = false; $msg = 'Acción desconocida.'; } else { [$ok, $msg] = $r; }
+    }
     flash_set($ok, $msg);
     header('Location: student.php' . (!empty($_POST['fecha']) ? '?fecha=' . urlencode($_POST['fecha']) : '')); exit;
 }
@@ -71,7 +76,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $hoy    = today();
 $ahora  = time();
 $horaAct = (int)date('G');
-$dias    = reservable_dates($org);
+$esCoord = is_coordinator($u);
+$dias    = reservable_dates_for($u, $org);
 $fecha   = $_GET['fecha'] ?? $hoy;
 if (!in_array($fecha, $dias, true)) $fecha = $dias[0] ?? $hoy;
 $esHoy   = $fecha === $hoy;
@@ -88,7 +94,9 @@ $blackouts = day_blackout_map((int)$org['id'], $fecha);
 $miFotoTs = foto_actualizada((int)$u['id']);
 
 $usadas = weekly_used_hours((int)$u['id'], $org, $fecha);
-$rest   = max(0, (int)$org['max_hours_week'] - $usadas);
+$limSem = weekly_limit($u, $org, $fecha);               // base + horas extra de esa semana
+$extraSem = $limSem - (int)$org['max_hours_week'];
+$rest   = $esCoord ? COORD_SIN_LIMITE : max(0, $limSem - $usadas);
 $bloqueo = student_block_reason($u);
 
 // Mis reservas de hoy y futuras (activas) + historial corto
@@ -175,9 +183,14 @@ if (ranking_aviso_vigente($org) && (int)($u['ranking_aviso_visto'] ?? 0) === 0):
 <?php endif; ?>
 
 <div class="saldo">
+  <?php if ($esCoord): ?>
+  <b>∞</b>
+  <div><span class="pill activa">Coordinador</span> Sin límite de horas, de bloques por sesión ni de anticipación para reservar. <span class="mini">(Llevas <?= (int)$usadas ?>h esta semana)</span></div>
+  <?php else: ?>
   <b><?= $rest ?>h</b>
-  <div><?= e(tema_txt($tema, 'saldo', 'te quedan disponibles esta semana')) ?> <span class="mini">(máx. <?= (int)$org['max_hours_week'] ?>h por semana, <?= (int)$org['max_blocks_session'] ?>h por sesión)</span></div>
-  <?php tema_deco_saldo($tema, (int)$rest, (int)$org['max_hours_week']); ?>
+  <div><?= e(tema_txt($tema, 'saldo', 'te quedan disponibles esta semana')) ?> <span class="mini">(máx. <?= (int)$org['max_hours_week'] ?>h por semana<?= $extraSem > 0 ? " + {$extraSem}h extra" : '' ?>, <?= (int)$org['max_blocks_session'] ?>h por sesión)</span></div>
+  <?php tema_deco_saldo($tema, (int)$rest, $limSem); ?>
+  <?php endif; ?>
 </div>
 
 <?php /* --- insignia del podio mensual (solo si la asociación lo activó) --- */
@@ -265,7 +278,14 @@ if ($activas): ?>
 anuncios_render(anuncios_vigentes($org), $org, true); ?>
 
 <h2><?= e(tema_txt($tema, 'salas_h2', 'Salas de hoy')) ?></h2>
-<?php if (count($dias) > 1): ?>
+<?php if ($esCoord && count($dias) > 1): ?>
+<div style="margin-bottom:14px; max-width:320px">
+  <label for="sel-fecha">Día a reservar</label>
+  <select id="sel-fecha" onchange="location.href='student.php?fecha=' + encodeURIComponent(this.value) + '#salas'">
+    <?php foreach ($dias as $d): ?><option value="<?= e($d) ?>" <?= $d === $fecha ? 'selected' : '' ?>><?= e(dia_picker_label($d, $hoy)) ?> — <?= e(strftime_es($d)) ?></option><?php endforeach; ?>
+  </select>
+</div>
+<?php elseif (count($dias) > 1): ?>
 <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px">
   <?php foreach ($dias as $d): ?>
     <a class="btn chico <?= $d === $fecha ? '' : 'gris' ?>" href="student.php?fecha=<?= e($d) ?>#salas"><?= e(dia_picker_label($d, $hoy)) ?></a>
@@ -325,6 +345,15 @@ anuncios_render(anuncios_vigentes($org), $org, true); ?>
               && empty($occ[$sel['room_id']][$h + 1])
               && empty($misBloquesDia[$sel['room_id']][$h + 1])
               && !isset($blackouts[$sel['room_id']][$h + 1]);
+    $opcSel = [1];
+    if ($esCoord) {
+        // Sin tope de bloques por sesión: todos los consecutivos libres hasta el cierre.
+        for ($k = 2; $h + $k <= (int)$org['close_hour']; $k++) {
+            $hh = $h + $k - 1;
+            if (!empty($occ[$sel['room_id']][$hh]) || !empty($misBloquesDia[$sel['room_id']][$hh]) || isset($blackouts[$sel['room_id']][$hh])) break;
+            $opcSel[] = $k;
+        }
+    } elseif ($puede2) { $opcSel[] = 2; }
     if ($roomSel && $roomSel['status'] === 'disponible' && empty($occ[$sel['room_id']][$h]) && !isset($blackouts[$sel['room_id']][$h])): ?>
 <div class="confirmar" id="confirmar">
   <b><?= e(sprintf(tema_txt($tema, 'confirmar', 'Reservar %s, %s a las %d:00'), $roomSel['name'], dia_frase($fecha, $hoy), $h)) ?></b>
@@ -336,8 +365,7 @@ anuncios_render(anuncios_vigentes($org), $org, true); ?>
     <input type="hidden" name="fecha" value="<?= e($fecha) ?>">
     <label>Duración</label>
     <select name="bloques">
-      <option value="1"><?= $h ?>:00 – <?= $h + 1 ?>:00 (1 hora)</option>
-      <?php if ($puede2): ?><option value="2"><?= $h ?>:00 – <?= $h + 2 ?>:00 (2 horas)</option><?php endif; ?>
+      <?php foreach ($opcSel as $k): ?><option value="<?= $k ?>"><?= $h ?>:00 – <?= $h + $k ?>:00 (<?= $k ?> hora<?= $k > 1 ? 's' : '' ?>)</option><?php endforeach; ?>
     </select>
     <div style="display:flex; gap:8px; margin-top:10px">
       <button class="btn" type="submit">Confirmar reserva</button>
@@ -351,6 +379,9 @@ anuncios_render(anuncios_vigentes($org), $org, true); ?>
     $roomF = null; foreach ($rooms as $r) if ((int)$r['id'] === $fila['room_id']) $roomF = $r;
     $hf = $fila['hora'];
     $puede2f = $rest >= 2 && (int)$org['max_blocks_session'] >= 2 && ($hf + 2) <= (int)$org['close_hour'];
+    $opcFila = [1];
+    if ($esCoord) { for ($k = 2; $k <= 6 && $hf + $k <= (int)$org['close_hour']; $k++) $opcFila[] = $k; }
+    elseif ($puede2f) { $opcFila[] = 2; }
     if ($roomF && $roomF['status'] === 'disponible' && isset($occ[$fila['room_id']][$hf]) && !isset($blackouts[$fila['room_id']][$hf])): ?>
 <div class="confirmar" id="fila">
   <b>Fila de espera: <?= e($roomF['name']) ?>, <?= e(dia_frase($fecha, $hoy)) ?> a las <?= $hf ?>:00</b>
@@ -365,8 +396,7 @@ anuncios_render(anuncios_vigentes($org), $org, true); ?>
     <input type="hidden" name="fecha" value="<?= e($fecha) ?>">
     <label>Duración deseada</label>
     <select name="bloques">
-      <option value="1"><?= $hf ?>:00 – <?= $hf + 1 ?>:00 (1 hora)</option>
-      <?php if ($puede2f): ?><option value="2"><?= $hf ?>:00 – <?= $hf + 2 ?>:00 (2 horas)</option><?php endif; ?>
+      <?php foreach ($opcFila as $k): ?><option value="<?= $k ?>"><?= $hf ?>:00 – <?= $hf + $k ?>:00 (<?= $k ?> hora<?= $k > 1 ? 's' : '' ?>)</option><?php endforeach; ?>
     </select>
     <div style="display:flex; gap:8px; margin-top:10px">
       <button class="btn" type="submit">Unirme a la fila</button>
@@ -389,6 +419,13 @@ anuncios_render(anuncios_vigentes($org), $org, true); ?>
   <span class="pill <?= e($m['status']) ?>"><?= e($nombres[$m['status']] ?? $m['status']) ?></span>
 </div>
 <?php endforeach; endif; ?>
+
+<?php if ($esCoord): ?>
+<h2 id="coordinador">Coordinador <span class="pill activa">Coordinador</span></h2>
+<p class="sub">Como coordinador de <?= e($org['name']) ?> puedes dar horas extra a otros estudiantes y generar enlaces para que se registren.</p>
+<?php render_horas_extra_panel($org, 'student.php'); ?>
+<?php render_invites_panel($org); ?>
+<?php endif; ?>
 
 <h2 id="perfil">Mi perfil</h2>
 <div class="card" style="max-width:420px">
@@ -455,7 +492,12 @@ anuncios_render(anuncios_vigentes($org), $org, true); ?>
   <?php endif; ?>
 </div>
 
-<script>setTimeout(() => location.replace('student.php'), 60000);</script>
+<script>setTimeout(function () {
+  // No recargar mientras alguien escribe en un formulario (p. ej. el panel de Coordinador).
+  var a = document.activeElement;
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA')) return;
+  location.replace('student.php');
+}, 60000);</script>
 <?php page_bottom();
 
 function strftime_es(string $ymd): string {

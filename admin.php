@@ -6,6 +6,7 @@ require_once __DIR__ . '/lib/schedule.php';
 require_once __DIR__ . '/lib/ranking.php';
 require_once __DIR__ . '/lib/foto.php';
 require_once __DIR__ . '/lib/anuncios.php';
+require_once __DIR__ . '/lib/coordinador.php';
 
 $u = require_role(['admin']);
 $org = org_of($u);
@@ -87,6 +88,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare("UPDATE users SET active = 1 - active WHERE id=? AND org_id=? AND role='student'")
             ->execute([(int)$_POST['id'], $orgId]);
         $ok = true; $msg = 'Estado de la cuenta actualizado.';
+
+    } elseif ($a === 'est_coordinador') {
+        $st = $pdo->prepare("SELECT id, name, is_coordinator FROM users WHERE id=? AND org_id=? AND role='student'");
+        $st->execute([(int)$_POST['id'], $orgId]);
+        if ($est = $st->fetch()) {
+            $nuevo = (int)$est['is_coordinator'] ? 0 : 1;
+            $pdo->prepare("UPDATE users SET is_coordinator = ? WHERE id=? AND org_id=? AND role='student'")
+                ->execute([$nuevo, (int)$est['id'], $orgId]);
+            log_activity($orgId, 'coordinador', $est['name'] . ($nuevo ? ' fue nombrado Coordinador' : ' dejó de ser Coordinador'));
+            $ok = true; $msg = $nuevo ? "{$est['name']} ahora es Coordinador." : "{$est['name']} ya no es Coordinador.";
+        } else { $msg = 'Ese estudiante no pertenece a esta asociación.'; }
 
     } elseif ($a === 'est_reset') {
         $nueva = trim($_POST['password'] ?? '');
@@ -390,6 +402,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         [$ok, $msg] = anuncios_set_segundos($orgId, (int)($_POST['segundos'] ?? 6));
     }
 
+    // Horas extra y enlaces de registro (lógica compartida con student.php).
+    if (($r = coord_handle_post($u, $org, $a)) !== null) [$ok, $msg] = $r;
+
     flash_set($ok, $msg);
     header('Location: admin.php?tab=' . urlencode($tab)
         . (isset($_POST['fecha']) ? '&fecha=' . urlencode($_POST['fecha']) : '')
@@ -617,6 +632,9 @@ elseif ($tab === 'estudiantes'):
 </div>
 <?php endif; ?>
 
+<?php render_invites_panel($org); ?>
+<?php render_horas_extra_panel($org, 'admin.php', ['tab' => 'estudiantes']); ?>
+
 <div class="dos-col">
   <div class="card">
     <h2 style="margin-top:0">Registrar estudiante</h2>
@@ -683,6 +701,7 @@ elseif ($tab === 'estudiantes'):
                 'color'      => ranking_color((string)$s['name']),
               ], 30) ?>
           <?= e($s['name']) ?>
+          <?php if (!empty($s['is_coordinator'])): ?><span class="pill activa">Coordinador</span><?php endif; ?>
         </span>
       </td>
       <td><?= e($s['carne']) ?></td>
@@ -711,6 +730,8 @@ elseif ($tab === 'estudiantes'):
           <button class="btn gris chico">Quitar foto</button>
         </form>
         <?php endif; ?>
+        <form class="inline" method="post"><?= csrf_field() ?><input type="hidden" name="a" value="est_coordinador"><input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
+          <button class="btn gris chico"><?= !empty($s['is_coordinator']) ? 'Quitar Coordinador' : 'Hacer Coordinador' ?></button></form>
         <form class="inline" method="post"><?= csrf_field() ?><input type="hidden" name="a" value="est_toggle"><input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
           <button class="btn <?= $s['active'] ? 'rojo' : 'verde' ?> chico"><?= $s['active'] ? 'Desactivar' : 'Activar' ?></button></form>
       </td>

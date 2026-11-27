@@ -52,6 +52,177 @@ function reservable_dates(array $org): array {
     return $out;
 }
 
+/* ---------- coordinadores y horas extra ---------- */
+
+/** Días hacia adelante que un coordinador puede reservar (siempre sobre días abiertos). */
+const COORD_HORIZON_DAYS = 60;
+/** "Sin límite" semanal para un coordinador (número alto, no se muestra). */
+const COORD_SIN_LIMITE = 9999;
+
+/** ¿Es un estudiante marcado como Coordinador por su asociación? */
+function is_coordinator(?array $u): bool {
+    return $u !== null && ($u['role'] ?? '') === 'student' && !empty($u['is_coordinator']);
+}
+
+/** Fechas reservables para este usuario: las normales, o cualquier día abierto futuro si es coordinador. */
+function reservable_dates_for(array $u, array $org): array {
+    if (!is_coordinator($u)) return reservable_dates($org);
+    $out = [];
+    for ($i = 0; $i <= COORD_HORIZON_DAYS; $i++) {
+        $d = date('Y-m-d', strtotime(today() . " +$i day"));
+        if (is_open_day($org, $d)) $out[] = $d;
+    }
+    return $out;
+}
+
+/** Bloques máximos por sesión: el de la organización, o todo el día operativo para un coordinador. */
+function max_blocks_for(array $u, array $org): int {
+    if (is_coordinator($u)) return max(1, (int)$org['close_hour'] - (int)$org['open_hour']);
+    return (int)$org['max_blocks_session'];
+}
+
+/** Inicio (Y-m-d) de la semana que contiene $date, según la organización. */
+function week_start_of(array $org, string $date): string {
+    return week_bounds($org, $date)[0];
+}
+
+/** Horas extra concedidas a un usuario para la semana que empieza en $weekStart. */
+function extra_hours_week(int $userId, int $orgId, string $weekStart): int {
+    $st = db()->prepare("SELECT COALESCE(SUM(hours),0) AS h FROM extra_hours
+                         WHERE user_id = ? AND org_id = ? AND week_start = ?");
+    $st->execute([$userId, $orgId, $weekStart]);
+    return (int)$st->fetch()['h'];
+}
+
+/** Límite semanal efectivo (base de la organización + horas extra de esa semana). No aplica a coordinadores. */
+function weekly_limit(array $u, array $org, string $date): int {
+    return (int)$org['max_hours_week']
+         + extra_hours_week((int)$u['id'], (int)$org['id'], week_start_of($org, $date));
+}
+
+/** Horas que aún puede reservar en la semana de $date (los coordinadores no tienen tope). */
+function weekly_left(array $u, array $org, string $date): int {
+    if (is_coordinator($u)) return COORD_SIN_LIMITE;
+    return weekly_limit($u, $org, $date) - weekly_used_hours((int)$u['id'], $org, $date);
+}
+
+/** ¿Puede $actor (admin o coordinador) gestionar horas extra y enlaces en su organización? */
+function puede_gestionar_org(array $actor, array $org): bool {
+    return !empty($actor['org_id']) && (int)$actor['org_id'] === (int)$org['id']
+        && ($actor['role'] === 'admin' || is_coordinator($actor));
+}
+
+/** Concede horas extra para la semana ACTUAL a un estudiante de la misma organización. */
+function conceder_horas_extra(array $actor, array $org, int $targetId, int $hours, string $reason): array {
+    if (!puede_gestionar_org($actor, $org)) return [false, 'No tienes permiso para esto.'];
+    if ($hours < 1 || $hours > 20) return [false, 'Las horas extra deben estar entre 1 y 20.'];
+    $reason = mb_substr(trim($reason), 0, 255);
+    $st = db()->prepare("SELECT id, name FROM users WHERE id = ? AND org_id = ? AND role = 'student' AND active = 1");
+    $st->execute([$targetId, (int)$org['id']]);
+    $t = $st->fetch();
+    if (!$t) return [false, 'Ese estudiante no pertenece a esta asociación.'];
+    $semana = week_start_of($org, today());
+    db()->prepare("INSERT INTO extra_hours (org_id, user_id, week_start, hours, granted_by, reason, created_at)
+                   VALUES (?,?,?,?,?,?,?)")
+        ->execute([(int)$org['id'], $targetId, $semana, $hours, (int)$actor['id'], $reason !== '' ? $reason : null, date('Y-m-d H:i:s')]);
+    log_activity((int)$org['id'], 'horas_extra',
+        "{$actor['name']} dio $hours h extra esta semana a {$t['name']}" . ($reason !== '' ? " ($reason)" : ''));
+    return [true, "Listo: {$t['name']} tiene $hours hora(s) extra esta semana."];
+}
+
+/** Quita una concesión de horas extra de la semana actual (misma organización). */
+function quitar_horas_extra(array $actor, array $org, int $grantId): array {
+    if (!puede_gestionar_org($actor, $org)) return [false, 'No tienes permiso para esto.'];
+    $semana = week_start_of($org, today());
+    $st = db()->prepare("SELECT e.*, u.name AS uname FROM extra_hours e JOIN users u ON u.id = e.user_id
+                         WHERE e.id = ? AND e.org_id = ? AND e.week_start = ?");
+    $st->execute([$grantId, (int)$org['id'], $semana]);
+    $g = $st->fetch();
+    if (!$g) return [false, 'Esa concesión no existe o no es de esta semana.'];
+    db()->prepare("DELETE FROM extra_hours WHERE id = ?")->execute([$grantId]);
+    log_activity((int)$org['id'], 'horas_extra', "{$actor['name']} quitó {$g['hours']} h extra a {$g['uname']}");
+    return [true, 'Horas extra retiradas.'];
+}
+
+/** Concesiones de horas extra de la semana actual de la organización. */
+function horas_extra_semana(array $org): array {
+    $st = db()->prepare(
+        "SELECT e.*, u.name AS uname, u.carne AS ucarne, g.name AS gname
+         FROM extra_hours e JOIN users u ON u.id = e.user_id LEFT JOIN users g ON g.id = e.granted_by
+         WHERE e.org_id = ? AND e.week_start = ? ORDER BY e.id DESC");
+    $st->execute([(int)$org['id'], week_start_of($org, today())]);
+    return $st->fetchAll();
+}
+
+/* ---------- enlaces de auto-registro (un solo uso) ---------- */
+
+/** URL base pública: config base_url, o la deducida de la petición si está vacía. */
+function base_url_publica(): string {
+    $b = rtrim((string)(cfg()['base_url'] ?? ''), '/');
+    if ($b !== '') return $b;
+    $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    $dir = rtrim(str_replace(chr(92), '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
+    return ($https ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $dir;
+}
+
+function invite_url(string $token): string {
+    return base_url_publica() . '/registro.php?t=' . $token;
+}
+
+function invite_crear(array $actor, array $org): array {
+    if (!puede_gestionar_org($actor, $org)) return [false, 'No tienes permiso para esto.'];
+    $token = bin2hex(random_bytes(24));
+    $now = date('Y-m-d H:i:s');
+    db()->prepare("INSERT INTO invite_tokens (org_id, token, created_by, created_at, expires_at, revoked)
+                   VALUES (?,?,?,?,?,0)")
+        ->execute([(int)$org['id'], $token, (int)$actor['id'], $now, date('Y-m-d H:i:s', time() + 48 * 3600)]);
+    log_activity((int)$org['id'], 'invitacion', "{$actor['name']} generó un enlace de registro");
+    return [true, 'Enlace de registro creado. Vale para un solo uso y vence en 48 horas.'];
+}
+
+function invite_revocar(array $actor, array $org, int $id): array {
+    if (!puede_gestionar_org($actor, $org)) return [false, 'No tienes permiso para esto.'];
+    $st = db()->prepare("UPDATE invite_tokens SET revoked = 1 WHERE id = ? AND org_id = ? AND used_at IS NULL");
+    $st->execute([$id, (int)$org['id']]);
+    if ($st->rowCount() === 0) return [false, 'Ese enlace ya no está pendiente.'];
+    log_activity((int)$org['id'], 'invitacion', "{$actor['name']} revocó un enlace de registro");
+    return [true, 'Enlace revocado.'];
+}
+
+/** Enlaces pendientes (no usados, no revocados, no vencidos) de la organización. */
+function invites_pendientes(array $org): array {
+    $st = db()->prepare(
+        "SELECT i.*, u.name AS creador FROM invite_tokens i LEFT JOIN users u ON u.id = i.created_by
+         WHERE i.org_id = ? AND i.used_at IS NULL AND i.revoked = 0 AND i.expires_at > ?
+         ORDER BY i.id DESC");
+    $st->execute([(int)$org['id'], date('Y-m-d H:i:s')]);
+    return $st->fetchAll();
+}
+
+/** Busca un enlace válido por token; null si no existe, se usó, se revocó o venció. */
+function invite_valido(string $token): ?array {
+    if (!preg_match('/^[0-9a-f]{32,64}$/', $token)) return null;
+    $st = db()->prepare("SELECT * FROM invite_tokens
+                         WHERE token = ? AND used_at IS NULL AND revoked = 0 AND expires_at > ?");
+    $st->execute([$token, date('Y-m-d H:i:s')]);
+    return $st->fetch() ?: null;
+}
+
+/** Atiende las acciones de coordinación (horas extra y enlaces) de admin.php y student.php. null = no es de aquí. */
+function coord_handle_post(array $u, array $org, string $a): ?array {
+    switch ($a) {
+        case 'extra_dar':
+            return conceder_horas_extra($u, $org, (int)($_POST['user_id'] ?? 0), (int)($_POST['horas'] ?? 0), (string)($_POST['motivo'] ?? ''));
+        case 'extra_quitar':
+            return quitar_horas_extra($u, $org, (int)($_POST['grant_id'] ?? 0));
+        case 'invite_crear':
+            return invite_crear($u, $org);
+        case 'invite_revocar':
+            return invite_revocar($u, $org, (int)($_POST['invite_id'] ?? 0));
+    }
+    return null;
+}
+
 /* ---------- procesos automáticos (se ejecutan en cada visita y vía cron.php) ---------- */
 
 function process_automatic(): void {
@@ -88,7 +259,9 @@ function process_automatic(): void {
         $st->execute([$r['user_id']]);
         if ($u = $st->fetch()) {
             $count = (int)$u['noshow_count'] + 1;
-            if ($count >= (int)$r['noshow_limit']) {
+            if (is_coordinator($u)) {
+                // Los coordinadores nunca se bloquean ni acumulan inasistencias.
+            } elseif ($count >= (int)$r['noshow_limit']) {
                 $until = date('Y-m-d H:i:s', time() + 86400 * (int)$r['noshow_block_days']);
                 $pdo->prepare("UPDATE users SET noshow_count = 0, blocked_until = ? WHERE id = ?")
                     ->execute([$until, $u['id']]);
@@ -155,6 +328,7 @@ function weekly_used_hours(int $userId, array $org, string $date): int {
 
 /** null si puede reservar; texto del motivo si está bloqueado. */
 function student_block_reason(array $u): ?string {
+    if (is_coordinator($u)) return null;
     if ($u['blocked_until'] && $u['blocked_until'] > date('Y-m-d H:i:s')) {
         return 'Tu cuenta está bloqueada para reservar hasta el ' .
                date('d/m/Y H:i', strtotime($u['blocked_until'])) . ' por acumular inasistencias.';
@@ -217,14 +391,14 @@ function try_reserve(array $u, array $org, int $roomId, int $startHour, int $nBl
     if ((int)$u['org_id'] !== (int)$org['id']) return [false, 'No perteneces a esta organización.'];
     if ($msg = student_block_reason($u)) return [false, $msg];
     if (!$org['active']) return [false, 'La organización no está activa.'];
-    if (!in_array($date, reservable_dates($org), true)) {
+    if (!in_array($date, reservable_dates_for($u, $org), true)) {
         return [false, 'Esa fecha no está disponible para reservar.'];
     }
     if ($esHoy && $now < strtotime(dt($date, (int)$org['booking_release_hour']))) {
         return [false, 'Las reservas del día se abren a las ' . (int)$org['booking_release_hour'] . ':00 a.m.'];
     }
 
-    $nBlocks = max(1, min($nBlocks, (int)$org['max_blocks_session']));
+    $nBlocks = max(1, min($nBlocks, max_blocks_for($u, $org)));
     $endHour = $startHour + $nBlocks;
     if ($startHour < (int)$org['open_hour'] || $endHour > (int)$org['close_hour']) {
         return [false, 'Horario fuera del rango operativo.'];
@@ -248,11 +422,10 @@ function try_reserve(array $u, array $org, int $roomId, int $startHour, int $nBl
     }
 
     // Límite semanal
-    $used = weekly_used_hours((int)$u['id'], $org, $date);
-    $left = (int)$org['max_hours_week'] - $used;
+    $left = weekly_left($u, $org, $date);
     if ($nBlocks > $left) {
         return [false, $left <= 0
-            ? 'Ya usaste tus ' . $org['max_hours_week'] . ' horas de esta semana.'
+            ? 'Ya usaste tus ' . weekly_limit($u, $org, $date) . ' horas de esta semana.'
             : "Solo te queda $left hora(s) esta semana."];
     }
 
@@ -366,14 +539,14 @@ function join_waitlist(array $u, array $org, int $roomId, int $startHour, int $n
     if ((int)$u['org_id'] !== (int)$org['id']) return [false, 'No perteneces a esta organización.'];
     if ($msg = student_block_reason($u)) return [false, $msg];
     if (!$org['active']) return [false, 'La organización no está activa.'];
-    if (!in_array($date, reservable_dates($org), true)) {
+    if (!in_array($date, reservable_dates_for($u, $org), true)) {
         return [false, 'Esa fecha no está disponible para reservar.'];
     }
     if ($esHoy && $now < strtotime(dt($date, (int)$org['booking_release_hour']))) {
         return [false, 'Las reservas del día se abren a las ' . (int)$org['booking_release_hour'] . ':00 a.m.'];
     }
 
-    $nBlocks = max(1, min($nBlocks, (int)$org['max_blocks_session']));
+    $nBlocks = max(1, min($nBlocks, max_blocks_for($u, $org)));
     $endHour = $startHour + $nBlocks;
     if ($startHour < (int)$org['open_hour'] || $endHour > (int)$org['close_hour']) {
         return [false, 'Horario fuera del rango operativo.'];
@@ -391,10 +564,10 @@ function join_waitlist(array $u, array $org, int $roomId, int $startHour, int $n
         return [false, 'Ese horario está restringido para esta sala.'];
     }
 
-    $left = (int)$org['max_hours_week'] - weekly_used_hours((int)$u['id'], $org, $date);
+    $left = weekly_left($u, $org, $date);
     if ($nBlocks > $left) {
         return [false, $left <= 0
-            ? 'Ya usaste tus ' . $org['max_hours_week'] . ' horas de esta semana.'
+            ? 'Ya usaste tus ' . weekly_limit($u, $org, $date) . ' horas de esta semana.'
             : "Solo te queda $left hora(s) esta semana."];
     }
 
@@ -473,7 +646,7 @@ function promote_waitlist(int $roomId, string $rdate, int $startHour): void {
         $cu = $st->fetch();
         if (!$cu || (int)$cu['org_id'] !== (int)$w['org_id'] || student_block_reason($cu)) continue;
 
-        if (weekly_used_hours((int)$cu['id'], $org, $rdate) + $n > (int)$org['max_hours_week']) continue;
+        if ($n > weekly_left($cu, $org, $rdate)) continue;
 
         // Todas las horas necesarias deben estar libres.
         $marks = implode(',', array_fill(0, $n, '?'));

@@ -236,6 +236,34 @@ function db_init(PDO $pdo, string $driver): void {
         updated_at VARCHAR(19) NOT NULL
     )$suf");
 
+    // Horas extra manuales para UNA semana concreta (week_start = inicio de semana Y-m-d).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS extra_hours (
+        id $PK,
+        org_id INT NOT NULL,
+        user_id INT NOT NULL,
+        week_start VARCHAR(10) NOT NULL,
+        hours INT NOT NULL,
+        granted_by INT NOT NULL,
+        reason VARCHAR(255) NULL,
+        created_at VARCHAR(19) NOT NULL
+    )$suf");
+    try { $pdo->exec("CREATE INDEX idx_extra_user_week ON extra_hours (user_id, week_start)"); }
+    catch (PDOException $e) { /* el índice ya existe */ }
+
+    // Enlaces de auto-registro de un solo uso (token aleatorio, expiran a las 48 h).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS invite_tokens (
+        id $PK,
+        org_id INT NOT NULL,
+        token VARCHAR(64) NOT NULL,
+        created_by INT NOT NULL,
+        created_at VARCHAR(19) NOT NULL,
+        expires_at VARCHAR(19) NOT NULL,
+        used_at VARCHAR(19) NULL,
+        used_by_user_id INT NULL,
+        revoked TINYINT NOT NULL DEFAULT 0,
+        CONSTRAINT uq_invite_token UNIQUE (token)
+    )$suf");
+
     // Migraciones suaves: columnas nuevas sobre bases ya existentes
     foreach (["ALTER TABLE organizations ADD COLUMN frozen_reason VARCHAR(255) NULL",
               "ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL",
@@ -262,7 +290,9 @@ function db_init(PDO $pdo, string $driver): void {
               // Anuncios: nacen APAGADOS en todas las asociaciones; solo el
               // super-admin los enciende. anuncios_segundos = rotación del carrusel.
               "ALTER TABLE organizations ADD COLUMN anuncios_enabled TINYINT NOT NULL DEFAULT 0",
-              "ALTER TABLE organizations ADD COLUMN anuncios_segundos INT NOT NULL DEFAULT 6"] as $sql) {
+              "ALTER TABLE organizations ADD COLUMN anuncios_segundos INT NOT NULL DEFAULT 6",
+              // Coordinador: estudiante (role='student') con permisos especiales de reserva.
+              "ALTER TABLE users ADD COLUMN is_coordinator TINYINT NOT NULL DEFAULT 0"] as $sql) {
         try { $pdo->exec($sql); } catch (PDOException $e) { /* la columna ya existe */ }
     }
 

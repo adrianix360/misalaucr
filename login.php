@@ -43,6 +43,7 @@ $tema = tema_global();
   <p class="sub" style="text-align:center"><?= e(tema_txt($tema, 'login_sub', 'Reserva tu sala de estudio en segundos')) ?></p>
   <div class="abiertas-login"><?= render_open_orgs_pill() ?></div>
   <div class="card">
+    <?php show_flash(); ?>
     <?php if ($error): ?><div class="alert bad"><?= e($error) ?></div><?php endif; ?>
     <form method="post">
       <?= csrf_field() ?>
