@@ -281,7 +281,7 @@ body.tema-halloween .btn { background: linear-gradient(180deg, #ffa23a, #ff7a1a)
 body.tema-halloween .btn:hover { background: linear-gradient(180deg, #8ee889, #57c463); color: #0e2e12; }
 body.tema-halloween .btn.gris { background: transparent; color: #e6dcf5; border-color: #453360; }
 body.tema-halloween input, body.tema-halloween select, body.tema-halloween textarea { background: #1a1327; color: #f6f1e6; border-color: #453360; }
-body.tema-halloween input::placeholder { color: #7d6f99; }
+body.tema-halloween input::placeholder { color: #a99ac6; }
 body.tema-halloween .saldo { background: linear-gradient(120deg, #241a36, #33204d); border-color: rgba(255, 122, 26, .32); }
 body.tema-halloween .saldo::before { background: linear-gradient(180deg, #ffb03a, #ff7a1a); width: 6px; }
 body.tema-halloween .saldo b { color: #ffb03a; font-family: "Creepster", cursive; }

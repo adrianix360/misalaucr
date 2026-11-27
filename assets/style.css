@@ -203,7 +203,7 @@ input, select, textarea {
   font-family: var(--f-body); font-size: 1rem; color: var(--tinta);
   background: #fff; transition: border-color var(--paso), box-shadow var(--paso);
 }
-input::placeholder { color: #a6a89f; }
+input::placeholder { color: var(--gris); opacity: 1; }
 input:hover, select:hover, textarea:hover { border-color: #cfc9ba; }
 input:focus, select:focus, textarea:focus {
   outline: none; border-color: var(--teal); box-shadow: var(--glow-teal);
@@ -530,8 +530,8 @@ main > .card, main > .kpis { animation-delay: .12s; }
   text-transform: uppercase; letter-spacing: .06em;
   border: 1px solid transparent;
 }
-.badge-estado.abierto { background: #d7f2ec; color: #0e9c86; border-color: #b6e6da; }
-.badge-estado.cerrado { background: #f8e8e6; color: #c14a44; border-color: #eec3bf; }
+.badge-estado.abierto { background: #d7f2ec; color: #0a6b5b; border-color: #b6e6da; }
+.badge-estado.cerrado { background: #f8e8e6; color: #8f312b; border-color: #eec3bf; }
 
 /* ---------- Agenda del horario (lista por día, no cuadrícula) --------- */
 .agenda-horario { display: flex; flex-direction: column; gap: 8px; }
@@ -865,7 +865,7 @@ img.msu-avatar { object-fit: cover; display: block; }
 .dk-body b { font-family: var(--f-display); font-size: 1.65rem; line-height: 1.1; color: var(--navy); font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
 .dk-body span { font-family: var(--f-mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: var(--gris); }
 .dk-delta { font-style: normal; font-size: .78rem; font-weight: 700; margin-top: 3px; color: var(--gris); }
-.dk-delta.good { color: var(--verde); } .dk-delta.bad { color: var(--rojo); }
+.dk-delta.good { color: #0a6b5b; } .dk-delta.bad { color: #8f312b; }
 .dash-grid { display: grid; gap: 14px; margin-bottom: 4px; grid-template-columns: 1fr; }
 @media (min-width: 900px) {
   .dash-g2 { grid-template-columns: repeat(3, 1fr); }
@@ -905,6 +905,10 @@ img.msu-avatar { object-fit: cover; display: block; }
 .hm-c { position: relative; aspect-ratio: 1; min-height: 24px; border-radius: 5px; display: grid; place-items: center;
   font-size: .66rem; font-weight: 700; color: var(--tinta); background: var(--gris-cl); overflow: hidden; }
 .hm-c::before { content: ""; position: absolute; inset: 0; background: var(--teal); opacity: var(--i, 0); }
+/* la intensidad máxima se limita en temas donde --teal es oscuro/saturado, para que el número siga legible */
+body.tema-independencia .hm-c::before { opacity: calc(var(--i, 0) * .55); }
+body.tema-halloween .hm-c::before { opacity: calc(var(--i, 0) * .55); }
+body.tema-navidad .hm-c::before { opacity: calc(var(--i, 0) * .6); }
 .hm-c { z-index: 0; }
 /* Tarjetas pequeñas */
 .dash-minis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-content: start; }
@@ -915,3 +919,10 @@ img.msu-avatar { object-fit: cover; display: block; }
 .dash-mini b { display: block; font-family: var(--f-display); font-size: 1.35rem; color: var(--navy); }
 .dash-mini small { font-size: .72rem; color: var(--gris); }
 body.tema-halloween .dk, body.tema-halloween .dash-mini { background: #241a36; border-color: #3a2b52; }
+/* los temas fijan color de h2 (p. ej. navidad = navy, invisible sobre el degradado navy): se fuerza blanco */
+html body .dash-sec h2 { color: #fff; }
+/* Halloween: el degradado de la cabecera es naranja claro → texto oscuro (el blanco no se lee) */
+body.tema-halloween .dash-sec, html body.tema-halloween .dash-sec h2 { color: #241407; }
+body.tema-halloween .dash-sec p { opacity: 1; }
+body.tema-halloween .dk-delta.good { color: #a5eaa7; }
+body.tema-halloween .dk-delta.bad { color: #ffb3b3; }

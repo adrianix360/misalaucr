@@ -27,6 +27,19 @@
       gris:  v('--gris', '#6c7680'),
       amber: v('--dash-amber', '#e0a100')
     };
+    // En algunos temas --navy y --teal casi coinciden (naranja/azul): se elige para la serie "navy" un color distinguible
+    function lum(h) {
+      var m = /^#([0-9a-f]{6})$/i.exec(h); if (!m) return null;
+      var n = parseInt(m[1], 16);
+      return [n >> 16, (n >> 8) & 255, n & 255].map(function (c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); })
+        .reduce(function (a, c, i) { return a + c * [0.2126, 0.7152, 0.0722][i]; }, 0);
+    }
+    function cr(a, b) { var x = lum(a), y = lum(b); if (x === null || y === null) return 99; return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+    [v('--tinta', ''), pal.gris, pal.verde].some(function (alt) {
+      if (cr(pal.navy, pal.teal) >= 2.5) return true;
+      if (alt && cr(alt, pal.teal) >= 2.5) { pal.navy = alt; return true; }
+      return false;
+    });
     var tick = pal.gris, grid = v('--borde', '#e2ddd0');
     Chart.defaults.font.family = v('--f-body', 'sans-serif');
     Chart.defaults.color = tick;
