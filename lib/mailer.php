@@ -196,3 +196,15 @@ function email_horario_actualizado(string $name, string $orgName, string $title,
         "<strong style='color:#0d7f8f;'>Nuevo horario:</strong> $safeResumen<br><br>Puedes ver el horario completo en la pestaña <strong>Horario</strong> de MiSalaUCR."
     );
 }
+
+function email_horas_extra(string $name, int $hours, string $quien, string $reason, string $orgName): string {
+    $rows = [['Horas extra', $hours . ($hours === 1 ? ' hora' : ' horas')], ['Asignadas por', $quien], ['Asociación', $orgName]];
+    if ($reason !== '') $rows[] = ['Motivo', $reason];
+    return email_layout(
+        'HORAS EXTRA', '#0e9c86', '#d7f2ec',
+        $name, 'Se te asignaron horas adicionales para reservar salas esta semana.',
+        $rows,
+        '#0e9c86', '#d7f2ec',
+        "<strong style='color:#0e9c86;'>Importante:</strong> estas horas son válidas solo para la semana en curso y se suman a tu límite semanal normal."
+    );
+}

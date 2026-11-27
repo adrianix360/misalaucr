@@ -117,7 +117,7 @@ function conceder_horas_extra(array $actor, array $org, int $targetId, int $hour
     if (!puede_gestionar_org($actor, $org)) return [false, 'No tienes permiso para esto.'];
     if ($hours < 1 || $hours > 20) return [false, 'Las horas extra deben estar entre 1 y 20.'];
     $reason = mb_substr(trim($reason), 0, 255);
-    $st = db()->prepare("SELECT id, name FROM users WHERE id = ? AND org_id = ? AND role = 'student' AND active = 1");
+    $st = db()->prepare("SELECT id, name, email FROM users WHERE id = ? AND org_id = ? AND role = 'student' AND active = 1");
     $st->execute([$targetId, (int)$org['id']]);
     $t = $st->fetch();
     if (!$t) return [false, 'Ese estudiante no pertenece a esta asociación.'];
@@ -127,6 +127,13 @@ function conceder_horas_extra(array $actor, array $org, int $targetId, int $hour
         ->execute([(int)$org['id'], $targetId, $semana, $hours, (int)$actor['id'], $reason !== '' ? $reason : null, date('Y-m-d H:i:s')]);
     log_activity((int)$org['id'], 'horas_extra',
         "{$actor['name']} dio $hours h extra esta semana a {$t['name']}" . ($reason !== '' ? " ($reason)" : ''));
+    if (!empty($t['email'])) {
+        $quien = $actor['role'] === 'admin'
+            ? 'Asociación ' . $org['name']
+            : $actor['name'] . ' (Coordinador)';
+        queue_email((int)$org['id'], $t['email'], 'Te asignaron horas extra en MiSalaUCR',
+            email_horas_extra($t['name'], $hours, $quien, $reason, $org['name']));
+    }
     return [true, "Listo: {$t['name']} tiene $hours hora(s) extra esta semana."];
 }
 
