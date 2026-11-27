@@ -834,3 +834,84 @@ img.msu-avatar { object-fit: cover; display: block; }
   .anuncio-fila { grid-template-columns: 1fr; }
   .anuncio-fila .miniatura { width: 100%; }
 }
+
+/* =====================================================================
+   Dashboard (estadísticas: superadmin y Reportes de admin)
+   Solo clases .dash-* / .dk*; no afecta otras páginas.
+   ===================================================================== */
+:root { --dash-amber: #e0a100; }
+.dash-sec { display: flex; align-items: center; gap: 12px; margin: 30px 0 14px; padding: 14px 18px;
+  border-radius: var(--r-lg); color: #fff; background: linear-gradient(110deg, var(--navy), var(--teal-ink)); box-shadow: var(--sh-md); }
+.dash-sec .ico { font-size: 1.7rem; line-height: 1; }
+.dash-sec h2 { margin: 0; color: #fff; font-size: 1.25rem; }
+.dash-sec p { margin: 2px 0 0; font-size: .82rem; opacity: .85; }
+.dash-filtros { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.dash-filtros > div { flex: 1; min-width: 170px; }
+.dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.dash-kpis-in { margin: 0; align-content: start; }
+.dk { --c1: var(--teal); --c2: var(--navy); position: relative; display: flex; gap: 12px; align-items: center;
+  background: #fff; border: 1px solid var(--borde); border-radius: var(--r-lg); padding: 14px; overflow: hidden;
+  box-shadow: var(--sh-sm); transition: transform var(--paso), box-shadow var(--paso); }
+.dk::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: linear-gradient(180deg, var(--c1), var(--c2)); }
+.dk:hover { transform: translateY(-2px); box-shadow: var(--sh-md); }
+.dk-teal  { --c1: var(--teal);  --c2: var(--navy); }
+.dk-navy  { --c1: var(--navy);  --c2: var(--teal-ink); }
+.dk-verde { --c1: var(--verde); --c2: var(--teal); }
+.dk-amber { --c1: var(--dash-amber); --c2: #f08a24; }
+.dk-rojo  { --c1: var(--rojo);  --c2: #e07b39; }
+.dk-ico { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; font-size: 1.4rem;
+  background: linear-gradient(135deg, var(--c1), var(--c2)); box-shadow: 0 6px 14px -6px var(--c1); }
+.dk-body { min-width: 0; display: flex; flex-direction: column; }
+.dk-body b { font-family: var(--f-display); font-size: 1.65rem; line-height: 1.1; color: var(--navy); font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.dk-body span { font-family: var(--f-mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: var(--gris); }
+.dk-delta { font-style: normal; font-size: .78rem; font-weight: 700; margin-top: 3px; color: var(--gris); }
+.dk-delta.good { color: var(--verde); } .dk-delta.bad { color: var(--rojo); }
+.dash-grid { display: grid; gap: 14px; margin-bottom: 4px; grid-template-columns: 1fr; }
+@media (min-width: 900px) {
+  .dash-g2 { grid-template-columns: repeat(3, 1fr); }
+  .dash-g2 .dash-span2 { grid-column: span 2; }
+  .dash-g3 { grid-template-columns: repeat(3, 1fr); }
+  .dash-gmail { grid-template-columns: 280px 1fr; }
+}
+.dash-card { margin-bottom: 0; min-width: 0; }
+.dash-h3 { margin: 0 0 4px; font-size: 1.02rem; }
+.dash-sub { margin: 0 0 8px; }
+.dash-chart { position: relative; height: 250px; }
+.dash-nochart { padding: 18px 0; text-align: center; }
+.dash-frase { margin: 14px 2px; padding: 10px 14px; border-radius: var(--r-md); border-left: 4px solid var(--dash-amber);
+  background: rgba(224,161,0,.12); font-weight: 500; }
+/* Medidor circular (CSS puro) */
+.dash-gauge-card { text-align: center; }
+.dash-ring { --c: var(--verde); width: 100%; height: 100%; border-radius: 50%;
+  background: conic-gradient(var(--c) calc(var(--p) * 1%), var(--gris-cl) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 18px), #000 calc(100% - 17px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 18px), #000 calc(100% - 17px)); }
+.dash-ring-amber { --c: var(--dash-amber); } .dash-ring-rojo { --c: var(--rojo); }
+.dash-ring-box { position: relative; width: 170px; height: 170px; margin: 8px auto 12px; }
+.dash-ring-box .dash-ring { margin: 0; }
+.dash-ring-txt { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.dash-ring-txt b { font-family: var(--f-display); font-size: 2.3rem; line-height: 1; color: var(--navy); }
+.dash-ring-txt span { font-family: var(--f-mono); font-size: .72rem; color: var(--gris); }
+.dash-gauge-line { margin: 4px 0; }
+/* Barras horizontales */
+.dash-bars { display: grid; gap: 7px; }
+.dash-bar { display: grid; grid-template-columns: minmax(70px, 38%) 1fr auto; gap: 8px; align-items: center; font-size: .84rem; }
+.dash-bar-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-bar-v { font-family: var(--f-mono); font-size: .75rem; color: var(--gris); white-space: nowrap; }
+/* Mapa de calor */
+.dash-heat-wrap { overflow-x: auto; padding-bottom: 6px; }
+.dash-heat { display: grid; grid-template-columns: 36px repeat(var(--cols), minmax(24px, 1fr)); gap: 3px; min-width: 360px; }
+.hm-h, .hm-d { font-family: var(--f-mono); font-size: .66rem; color: var(--gris); text-align: center; align-self: center; }
+.hm-c { position: relative; aspect-ratio: 1; min-height: 24px; border-radius: 5px; display: grid; place-items: center;
+  font-size: .66rem; font-weight: 700; color: var(--tinta); background: var(--gris-cl); overflow: hidden; }
+.hm-c::before { content: ""; position: absolute; inset: 0; background: var(--teal); opacity: var(--i, 0); }
+.hm-c { z-index: 0; }
+/* Tarjetas pequeñas */
+.dash-minis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-content: start; }
+.dash-minis-col { grid-template-columns: 1fr; }
+@media (max-width: 899px) { .dash-minis { grid-template-columns: repeat(3, 1fr); } }
+.dash-mini { background: #fff; border: 1px solid var(--borde); border-radius: var(--r-md); padding: 12px 8px; text-align: center; box-shadow: var(--sh-sm); }
+.dash-mini span { font-size: 1.3rem; display: block; }
+.dash-mini b { display: block; font-family: var(--f-display); font-size: 1.35rem; color: var(--navy); }
+.dash-mini small { font-size: .72rem; color: var(--gris); }
+body.tema-halloween .dk, body.tema-halloween .dash-mini { background: #241a36; border-color: #3a2b52; }

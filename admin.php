@@ -7,6 +7,7 @@ require_once __DIR__ . '/lib/ranking.php';
 require_once __DIR__ . '/lib/foto.php';
 require_once __DIR__ . '/lib/anuncios.php';
 require_once __DIR__ . '/lib/coordinador.php';
+require_once __DIR__ . '/lib/estadisticas.php';
 
 $u = require_role(['admin']);
 $org = org_of($u);
@@ -906,6 +907,21 @@ elseif ($tab === 'reportes'):
     uasort($porEst, fn($x, $y) => $y['h'] <=> $x['h']);
     $maxHora = $porHora ? max($porHora) : 1;
 ?>
+<?php
+    $dias = est_dias_validos($_GET['dias'] ?? 30);
+    $dUso = est_uso($pdo, $orgId, $dias);
+    $dMail = est_correos_org($pdo, $orgId, $dias);
+    est_filtros('admin.php', ['tab' => 'reportes'], $dias);
+?>
+<div class="dash-sec"><span class="ico">📊</span><div><h2>Resumen de tu asociación</h2><p>Últimos <?= $dias ?> días frente a los <?= $dias ?> anteriores</p></div></div>
+<?php est_render_uso($dUso, true); ?>
+<div class="dash-minis" style="margin-top:14px">
+  <?= est_mini('✉️', (string)$dMail['enviado'], "correos enviados ($dias d)") ?>
+  <?= est_mini('⏳', (string)$dMail['pendiente'], 'pendientes') ?>
+  <?= est_mini('❌', (string)$dMail['error'], 'con error') ?>
+</div>
+
+<div class="dash-sec"><span class="ico">🗂️</span><div><h2>Reporte detallado por fechas</h2><p>Elige un rango exacto</p></div></div>
 <form method="get" class="card" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap">
   <input type="hidden" name="tab" value="reportes">
   <div><label>Desde</label><input type="date" name="desde" value="<?= e($desde) ?>"></div>
@@ -1610,4 +1626,5 @@ elseif ($tab === 'anuncios'):
 </div>
 <?php endif; ?>
 
+<?php if ($tab === 'reportes') est_scripts(); ?>
 <?php page_bottom();

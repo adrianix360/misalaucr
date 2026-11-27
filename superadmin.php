@@ -3,6 +3,7 @@ require_once __DIR__ . '/lib/auth.php';
 require_once __DIR__ . '/lib/rules.php';
 require_once __DIR__ . '/lib/layout.php';
 require_once __DIR__ . '/lib/anuncios.php';
+require_once __DIR__ . '/lib/estadisticas.php';
 
 $u = require_role(['super']);
 process_automatic();
@@ -313,6 +314,21 @@ elseif ($tab === 'dashboard'):
     $iconos = ['reserva'=>'📅','cancelacion'=>'✖️','checkin'=>'✅','no_show'=>'🚫','estudiante'=>'👤',
                'fila'=>'⏳','asignacion'=>'🎟️','organizacion'=>'🏛️','movido'=>'🔁','horario'=>'🕒','anuncio'=>'📢'];
 ?>
+<?php
+    $dias = est_dias_validos($_GET['dias'] ?? 30);
+    $orgSel = (int)($_GET['org'] ?? 0);
+    if ($orgSel && !array_filter($orgs, fn($o) => (int)$o['id'] === $orgSel)) $orgSel = 0;
+    $dCorreos = est_correos($pdo, $dias);
+    $dUso = est_uso($pdo, $orgSel ?: null, $dias);
+    est_filtros('superadmin.php', ['tab' => 'dashboard'], $dias, $orgs, $orgSel);
+?>
+<div class="dash-sec"><span class="ico">✉️</span><div><h2>Correos (Resend · plan gratis 100/día)</h2><p>Límite global de la plataforma: no depende del filtro de organización.</p></div></div>
+<?php est_render_correos($dCorreos); ?>
+
+<div class="dash-sec"><span class="ico">🏫</span><div><h2>Uso de salas</h2><p><?= $orgSel ? 'Organización seleccionada' : 'Todas las organizaciones' ?> · últimos <?= $dias ?> días frente a los <?= $dias ?> anteriores</p></div></div>
+<?php est_render_uso($dUso); ?>
+
+<div class="dash-sec"><span class="ico">🏆</span><div><h2>Ranking y actividad</h2><p>Resumen general de la plataforma</p></div></div>
 <div class="kpis">
   <div class="kpi"><b><?= $totOrgs ?></b><span>organizaciones (<?= $activas ?> activas · <?= $totOrgs - $activas ?> congeladas)</span></div>
   <div class="kpi"><b><?= $totEst ?></b><span>estudiantes en la plataforma</span></div>
@@ -504,4 +520,5 @@ elseif ($tab === 'anuncios'):
 </div>
 <?php endif; ?>
 
+<?php if ($tab === 'dashboard') est_scripts(); ?>
 <?php page_bottom();
