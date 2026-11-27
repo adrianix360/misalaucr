@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $link = rtrim(cfg()['base_url'], '/') . '/reset_password.php?token=' . $token;
                 queue_email($u['org_id'], $u['email'], 'Recupera tu contraseña — MiSalaUCR',
-                    email_reset_password($u['name'], $link));
+                    email_reset_password($u['name'], $link), true, true); // transaccional: ignora la baja
             }
         }
 

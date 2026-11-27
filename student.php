@@ -42,6 +42,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->prepare("UPDATE users SET phone = ? WHERE id = ?")->execute([$tel ?: null, (int)$u['id']]);
             $ok = true; $msg = tema_txt($tema, 'perfil_ok', 'Perfil actualizado.');
         }
+    } elseif ($a === 'notif_correo') {
+        $recibir = ($_POST['recibir'] ?? '') === '1';
+        db()->prepare("UPDATE users SET email_opt_out = ? WHERE id = ?")->execute([$recibir ? 0 : 1, (int)$u['id']]);
+        $ok = true;
+        $msg = $recibir ? 'Listo: volverás a recibir notificaciones por correo.'
+                        : 'Listo: ya no recibirás notificaciones por correo (salvo restablecer contraseña).';
     } elseif ($a === 'foto_subir') {
         [$ok, $msg] = foto_subir_de_post((int)$u['id'], $_FILES['foto'] ?? null);
 
@@ -438,6 +444,17 @@ anuncios_render(anuncios_vigentes($org), $org, true); ?>
     </div>
     <button class="btn gris chico" style="margin-bottom:2px">Guardar</button>
   </form>
+  <?php $sinCorreos = (int)($u['email_opt_out'] ?? 0) === 1; ?>
+  <div class="perfil-podio">
+    <p class="mini"><b>Notificaciones por correo.</b>
+      <?= $sinCorreos ? 'Ahora no recibes correos de confirmación, recordatorios ni avisos (solo el de restablecer contraseña).'
+                      : 'Recibes correos de confirmación, recordatorios y avisos de tu asociación.' ?></p>
+    <form method="post">
+      <?= csrf_field() ?><input type="hidden" name="a" value="notif_correo">
+      <input type="hidden" name="recibir" value="<?= $sinCorreos ? '1' : '0' ?>">
+      <button class="btn gris chico"><?= $sinCorreos ? 'Recibir notificaciones por correo' : 'Dejar de recibir notificaciones' ?></button>
+    </form>
+  </div>
   <?php if (ranking_activo($org) && foto_gd_disponible()): ?>
   <div class="perfil-podio">
     <p class="mini"><b>Tu foto.</b> Aparece junto a tu nombre en el podio que ve tu asociación. Es opcional.</p>

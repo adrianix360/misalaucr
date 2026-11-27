@@ -13,13 +13,75 @@ require_once __DIR__ . '/db.php';
  * Resend: sirve para envíos masivos que no caben en un solo request; esos
  * quedan listos para "Reintentar" desde Admin → Correos.
  */
-function queue_email(?int $orgId, string $to, string $subject, string $body, bool $send = true): void {
+const EMAIL_UNSUB_MARKER = '<!--MSU_UNSUB-->';
+const EMAIL_UNSUB_RE = '#https?://[^\s\'"<>]+/baja\.php\?t=([a-f0-9]{16,64})#';
+
+/** URL pública de baja de un usuario; genera el token estable la primera vez. */
+function unsub_url_for_user(int $userId, ?string $token = null): string {
+    $pdo = db();
+    if (!$token) {
+        $token = bin2hex(random_bytes(24));
+        // Solo si aún no tiene (evita pisar el de otra petición concurrente).
+        $pdo->prepare("UPDATE users SET unsub_token = ? WHERE id = ? AND (unsub_token IS NULL OR unsub_token = '')")
+            ->execute([$token, $userId]);
+        $st = $pdo->prepare("SELECT unsub_token FROM users WHERE id = ?");
+        $st->execute([$userId]);
+        $token = (string)$st->fetchColumn();
+    }
+    $base = rtrim(trim((string)(cfg()['base_url'] ?? '')), '/');
+    if ($base === '') $base = 'https://www.misalaucr.com';
+    return $base . '/baja.php?t=' . $token;
+}
+
+/** ¿El correo (ya encolado, con enlace de baja en el cuerpo) es de alguien dado de baja? */
+function email_body_opted_out(string $body): bool {
+    if (!preg_match(EMAIL_UNSUB_RE, $body, $m)) return false; // transaccional o sin usuario
+    $st = db()->prepare("SELECT email_opt_out FROM users WHERE unsub_token = ?");
+    $st->execute([$m[1]]);
+    return (int)$st->fetchColumn() === 1;
+}
+
+/**
+ * Registra un correo y lo envía de inmediato.
+ * Con $send = false solo lo deja 'pendiente' en la bitácora, sin llamar a
+ * Resend: sirve para envíos masivos que no caben en un solo request; esos
+ * quedan listos para "Reintentar" desde Admin → Correos.
+ * $transactional = true (restablecer contraseña): ignora la baja y no lleva enlace de baja.
+ * Si el destinatario es un usuario dado de baja, queda como 'omitido' y no se envía.
+ */
+function queue_email(?int $orgId, string $to, string $subject, string $body, bool $send = true, bool $transactional = false): void {
     if (!$to) return;
     $pdo = db();
+    $status = 'pendiente';
+    $unsub = '';
+    if (!$transactional) {
+        $st = $pdo->prepare("SELECT id, email_opt_out, unsub_token FROM users WHERE email = ? ORDER BY id LIMIT 1");
+        $st->execute([$to]);
+        if ($u = $st->fetch()) {
+            if ((int)$u['email_opt_out'] === 1) {
+                $status = 'omitido';
+            } else {
+                $url = unsub_url_for_user((int)$u['id'], $u['unsub_token'] ?: null);
+                $unsub = $url;
+            }
+        }
+    }
+    if ($unsub !== '') {
+        $safe = _email_esc($unsub);
+        if (str_contains($body, EMAIL_UNSUB_MARKER)) {
+            $body = str_replace(EMAIL_UNSUB_MARKER,
+                "<br><a href='$safe' style='color:#6c7680;text-decoration:underline;'>Darse de baja de las notificaciones</a>", $body);
+        } else {
+            $body .= "\n\nDarse de baja de las notificaciones: " . $unsub;
+        }
+    }
+    $body = str_replace(EMAIL_UNSUB_MARKER, '', $body);
     $pdo->prepare("INSERT INTO email_log (org_id, to_email, subject, body, status, created_at)
-                   VALUES (?,?,?,?,'pendiente',?)")
-        ->execute([$orgId, $to, $subject, $body, date('Y-m-d H:i:s')]);
+                   VALUES (?,?,?,?,?,?)")
+        ->execute([$orgId, $to, $subject, $body, $status, date('Y-m-d H:i:s')]);
     $id = (int)$pdo->lastInsertId();
+
+    if ($status === 'omitido') return;
 
     if (!$send) return;
 
@@ -36,13 +98,21 @@ function resend_send(string $to, string $subject, string $body): array {
     $isHtml = str_contains($body, '<') && str_contains($body, '>');
     $html = $isHtml ? $body : nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8'));
     $text = $isHtml ? trim(preg_replace('/\s+/', ' ', strip_tags($body))) : $body;
-    $payload = json_encode([
+    $msg = [
         'from'    => $cfg['mail_from'],
         'to'      => [$to],
         'subject' => $subject,
         'html'    => $html,
         'text'    => $text,
-    ]);
+    ];
+    // Baja con un clic (RFC 8058): solo si el cuerpo trae el enlace de baja.
+    if (preg_match(EMAIL_UNSUB_RE, $body, $um)) {
+        $msg['headers'] = [
+            'List-Unsubscribe'      => '<' . $um[0] . '>',
+            'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',
+        ];
+    }
+    $payload = json_encode($msg);
     $auth = 'Bearer ' . trim($cfg['resend_api_key']);
 
     if (function_exists('curl_init')) {
@@ -130,7 +200,7 @@ $noteHtml
 </td></tr>
 
 <tr><td style='padding:20px 32px;background:#f0eee8;text-align:center;'>
-<p style='font-size:11px;color:#6c7680;margin:0;font-family:Arial,Helvetica,sans-serif;'>MiSalaUCR &middot; Reserva de salas de estudio<br><a href='https://www.misalaucr.com' style='color:#0d7f8f;text-decoration:none;'>www.misalaucr.com</a></p>
+<p style='font-size:11px;color:#6c7680;margin:0;font-family:Arial,Helvetica,sans-serif;'>MiSalaUCR &middot; Reserva de salas de estudio<br><a href='https://www.misalaucr.com' style='color:#0d7f8f;text-decoration:none;'>www.misalaucr.com</a>" . EMAIL_UNSUB_MARKER . "</p>
 </td></tr>
 
 </table>

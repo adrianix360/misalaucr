@@ -292,7 +292,11 @@ function db_init(PDO $pdo, string $driver): void {
               "ALTER TABLE organizations ADD COLUMN anuncios_enabled TINYINT NOT NULL DEFAULT 0",
               "ALTER TABLE organizations ADD COLUMN anuncios_segundos INT NOT NULL DEFAULT 6",
               // Coordinador: estudiante (role='student') con permisos especiales de reserva.
-              "ALTER TABLE users ADD COLUMN is_coordinator TINYINT NOT NULL DEFAULT 0"] as $sql) {
+              "ALTER TABLE users ADD COLUMN is_coordinator TINYINT NOT NULL DEFAULT 0",
+              // Baja de notificaciones por correo (excepto restablecer contraseña) y
+              // token estable para el enlace público de baja (se genera al primer uso).
+              "ALTER TABLE users ADD COLUMN email_opt_out TINYINT NOT NULL DEFAULT 0",
+              "ALTER TABLE users ADD COLUMN unsub_token VARCHAR(64) NULL"] as $sql) {
         try { $pdo->exec($sql); } catch (PDOException $e) { /* la columna ya existe */ }
     }
 

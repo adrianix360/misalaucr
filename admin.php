@@ -142,10 +142,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
     } elseif ($a === 'correo_reintentar') {
-        $st = $pdo->prepare("SELECT * FROM email_log WHERE org_id=? AND status <> 'enviado' ORDER BY id DESC LIMIT 20");
+        $st = $pdo->prepare("SELECT * FROM email_log WHERE org_id=? AND status IN ('pendiente','error') ORDER BY id DESC LIMIT 20");
         $st->execute([$orgId]);
         $envs = 0; $errs = 0;
         foreach ($st->fetchAll() as $m) {
+            if (email_body_opted_out($m['body'])) { // se dio de baja después de encolarse
+                $pdo->prepare("UPDATE email_log SET status='omitido', error=NULL WHERE id=?")->execute([$m['id']]);
+                continue;
+            }
             [$okS, $err] = resend_send($m['to_email'], $m['subject'], $m['body']);
             $pdo->prepare("UPDATE email_log SET status=?, error=? WHERE id=?")
                 ->execute([$okS ? 'enviado' : 'error', $err, $m['id']]);
@@ -702,6 +706,7 @@ elseif ($tab === 'estudiantes'):
               ], 30) ?>
           <?= e($s['name']) ?>
           <?php if (!empty($s['is_coordinator'])): ?><span class="pill activa">Coordinador</span><?php endif; ?>
+          <?php if (!empty($s['email_opt_out'])): ?><span class="mini" title="Se dio de baja de las notificaciones por correo">✉ sin correos</span><?php endif; ?>
         </span>
       </td>
       <td><?= e($s['carne']) ?></td>
